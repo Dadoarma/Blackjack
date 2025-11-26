@@ -1,49 +1,49 @@
-const WebSocket = require("ws");
-const wss = new WebSocket.Server({ port: 443 });
+const WebSocket = require("http");
+const https = new WebSocket.Server({ port: 443 });
 
 const tables = {};
 const MAX = 5;
 
 console.log("🎰 Server online\n");
 
-wss.on("connection", ws => {
-    ws.q = [];
-    ws.table = null;
+https.on("connection", http => {
+    http.q = [];
+    http.table = null;
     
-    ws.on("message", m => {
+    http.on("message", m => {
         const msg = m.toString().trim();
         
         if (msg === "CREATE") {
             const code = genCode();
             tables[code] = { c: [], h: [], d: [], run: false };
-            join(ws, code);
-            ws.send(`TABLE_CREATED ${code}`);
+            join(http, code);
+            http.send(`TABLE_CREATED ${code}`);
             console.log(`✅ Table ${code} created`);
         } else if (msg.startsWith("JOIN ")) {
             const code = msg.split(" ")[1];
-            if (!tables[code]) ws.send("TABLE_NOT_FOUND");
-            else if (tables[code].c.length >= MAX) ws.send("TABLE_FULL");
+            if (!tables[code]) http.send("TABLE_NOT_FOUND");
+            else if (tables[code].c.length >= MAX) http.send("TABLE_FULL");
             else {
-                join(ws, code);
-                ws.send(`TABLE_JOINED ${code}`);
+                join(http, code);
+                http.send(`TABLE_JOINED ${code}`);
                 console.log(`✅ Joined ${code} (${tables[code].c.length}/${MAX})`);
             }
         } else {
-            ws.q.push(msg.toUpperCase());
+            http.q.push(msg.toUpperCase());
         }
     });
     
-    ws.on("close", () => {
-        if (ws.table) {
-            const t = tables[ws.table];
-            const i = t.c.indexOf(ws);
+    http.on("close", () => {
+        if (http.table) {
+            const t = tables[http.table];
+            const i = t.c.indexOf(http);
             if (i !== -1) {
                 t.c.splice(i, 1);
                 t.h.splice(i, 1);
-                console.log(`❌ Player left ${ws.table}`);
+                console.log(`❌ Player left ${http.table}`);
                 if (t.c.length === 0) {
-                    delete tables[ws.table];
-                    console.log(`🗑️  Deleted ${ws.table}`);
+                    delete tables[http.table];
+                    console.log(`🗑️  Deleted ${http.table}`);
                 }
             }
         }
@@ -57,10 +57,10 @@ function genCode() {
     return c;
 }
 
-function join(ws, code) {
-    ws.table = code;
+function join(http, code) {
+    http.table = code;
     const t = tables[code];
-    t.c.push(ws);
+    t.c.push(http);
     t.h.push([]);
     if (!t.run && t.c.length > 0) {
         t.run = true;
