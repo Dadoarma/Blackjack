@@ -4,7 +4,7 @@ const wss = new WebSocket.Server({ port: 5000 });
 const tables = {};
 const MAX = 5;
 
-console.log("🎰 Server online on ws://localhost:5000\n");
+console.log("🎰 Server online\n");
 
 wss.on("connection", ws => {
     ws.q = [];
