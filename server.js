@@ -1,54 +1,58 @@
-const WebSocket = require("http");
-const https = new WebSocket.Server({ port: 443 });
+const WebSocket = require("ws");
+
+const port = process.env.PORT || 5000; // Render assegna la porta tramite env
+const wss = new WebSocket.Server({ port });
+
+console.log(`🎰 Server online on port ${port}\n`);
 
 const tables = {};
 const MAX = 5;
 
-console.log("🎰 Server online\n");
+wss.on("connection", ws => {
+    ws.q = [];
+    ws.table = null;
 
-https.on("connection", http => {
-    http.q = [];
-    http.table = null;
-    
-    http.on("message", m => {
+    ws.on("message", m => {
         const msg = m.toString().trim();
-        
+
         if (msg === "CREATE") {
             const code = genCode();
             tables[code] = { c: [], h: [], d: [], run: false };
-            join(http, code);
-            http.send(`TABLE_CREATED ${code}`);
+            join(ws, code);
+            ws.send(`TABLE_CREATED ${code}`);
             console.log(`✅ Table ${code} created`);
         } else if (msg.startsWith("JOIN ")) {
             const code = msg.split(" ")[1];
-            if (!tables[code]) http.send("TABLE_NOT_FOUND");
-            else if (tables[code].c.length >= MAX) http.send("TABLE_FULL");
+            if (!tables[code]) ws.send("TABLE_NOT_FOUND");
+            else if (tables[code].c.length >= MAX) ws.send("TABLE_FULL");
             else {
-                join(http, code);
-                http.send(`TABLE_JOINED ${code}`);
+                join(ws, code);
+                ws.send(`TABLE_JOINED ${code}`);
                 console.log(`✅ Joined ${code} (${tables[code].c.length}/${MAX})`);
             }
         } else {
-            http.q.push(msg.toUpperCase());
+            ws.q.push(msg.toUpperCase());
         }
     });
-    
-    http.on("close", () => {
-        if (http.table) {
-            const t = tables[http.table];
-            const i = t.c.indexOf(http);
+
+    ws.on("close", () => {
+        if (ws.table) {
+            const t = tables[ws.table];
+            const i = t.c.indexOf(ws);
             if (i !== -1) {
                 t.c.splice(i, 1);
                 t.h.splice(i, 1);
-                console.log(`❌ Player left ${http.table}`);
+                console.log(`❌ Player left ${ws.table}`);
                 if (t.c.length === 0) {
-                    delete tables[http.table];
-                    console.log(`🗑️  Deleted ${http.table}`);
+                    delete tables[ws.table];
+                    console.log(`🗑️  Deleted ${ws.table}`);
                 }
             }
         }
     });
 });
+
+// ===== FUNZIONI DEL GIOCO =====
 
 function genCode() {
     let c;
@@ -57,10 +61,10 @@ function genCode() {
     return c;
 }
 
-function join(http, code) {
-    http.table = code;
+function join(ws, code) {
+    ws.table = code;
     const t = tables[code];
-    t.c.push(http);
+    t.c.push(ws);
     t.h.push([]);
     if (!t.run && t.c.length > 0) {
         t.run = true;
@@ -71,9 +75,9 @@ function join(http, code) {
 async function game(code) {
     const t = tables[code];
     if (!t) return;
-    
+
     console.log(`\n🎮 [${code}] Game start`);
-    
+
     // Init deck
     t.d = [];
     for (let s of ["♥", "♦", "♣", "♠"]) 
@@ -83,24 +87,24 @@ async function game(code) {
         const j = Math.random() * (i + 1) | 0;
         [t.d[i], t.d[j]] = [t.d[j], t.d[i]];
     }
-    
+
     // Reset
     t.h = t.c.map(() => []);
     all(t, "DEALER_RESET");
     await wait(300);
-    
+
     // Dealer
     const dealer = [draw(t), draw(t)];
     all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
     await wait(800);
-    
+
     // Players
     for (let i = 0; i < t.c.length; i++) {
         t.h[i] = [draw(t), draw(t)];
         send(t, i, `CARDS ${t.h[i].map(fmt).join(",")}`);
     }
     await wait(500);
-    
+
     // Turns
     for (let i = 0; i < t.c.length; i++) {
         if (!t.c[i]) continue;
@@ -115,7 +119,7 @@ async function game(code) {
             } else break;
         }
     }
-    
+
     // Dealer plays if anyone <= 21
     const alive = t.h.some(h => val(h) <= 21);
     if (alive) {
@@ -132,10 +136,10 @@ async function game(code) {
         all(t, "DEALER_REVEAL");
         await wait(1000);
     }
-    
+
     const dv = val(dealer);
     console.log(`🏁 [${code}] Dealer: ${dv}`);
-    
+
     // Results
     for (let i = 0; i < t.c.length; i++) {
         const p = val(t.h[i]);
@@ -143,7 +147,7 @@ async function game(code) {
         send(t, i, `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
     }
     await wait(1000);
-    
+
     // Replay
     const keep = [];
     for (let i = 0; i < t.c.length; i++) {
@@ -152,10 +156,10 @@ async function game(code) {
         if (await resp(t, i) === "YES") keep.push(t.c[i]);
         else t.c[i].close();
     }
-    
+
     t.c = keep;
     t.h = keep.map(() => []);
-    
+
     if (t.c.length > 0) {
         console.log(`♻️  [${code}] Next round`);
         await wait(2000);
@@ -165,6 +169,8 @@ async function game(code) {
         delete tables[code];
     }
 }
+
+// ===== FUNZIONI AUSILIARIE =====
 
 function all(t, m) {
     t.c.forEach((c, i) => send(t, i, m));
