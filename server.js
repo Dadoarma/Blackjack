@@ -1,5 +1,5 @@
 const WebSocket = require("ws");
-const wss = new WebSocket.Server({ port: 5000 });
+const wss = new WebSocket.Server({ port: 443 });
 
 const tables = {};
 const MAX = 5;
