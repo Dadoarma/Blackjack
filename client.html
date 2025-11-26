@@ -52,7 +52,7 @@
 let http, play = false, pc = [], dc = [];
 
 function connect(msg) {
-    http = new WebSocket("https://blackjack-dlw3.onrender.com");
+    http = new WebSocket("wss://blackjack-dlw3.onrender.com");
     http.onopen = () => http.send(msg);
     http.onmessage = async e => {
         const d = e.data;
