@@ -49,12 +49,15 @@
 </div>
 
 <script>
-let http, play = false, pc = [], dc = [];
+let ws, play = false, pc = [], dc = [];
 
 function connect(msg) {
-    http = new WebSocket("wss://blackjack-dlw3.onrender.com");
-    http.onopen = () => http.send(msg);
-    http.onmessage = async e => {
+    // ✅ Modifica qui: usa wss:// per WebSocket sicuro su Render
+    ws = new WebSocket("wss://blackjack-dlw3.onrender.com");
+    
+    ws.onopen = () => ws.send(msg);
+
+    ws.onmessage = async e => {
         const d = e.data;
         log(d);
         
@@ -112,9 +115,9 @@ function connect(msg) {
 }
 
 function send(m) {
-    if (http.readyState !== 1) return;
+    if (ws.readyState !== 1) return;
     if (!play && m !== "YES") return;
-    http.send(m);
+    ws.send(m);
     log("> " + m);
     if (m === "HIT" || m === "STAND") {
         play = false;
@@ -127,7 +130,7 @@ function send(m) {
 }
 
 function leave() {
-    http.close();
+    ws.close();
     game.classList.add("hidden");
     lobby.classList.remove("hidden");
     pc = dc = [];
