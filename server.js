@@ -1,6 +1,15 @@
-// SERVER BLACKJACK SEMPLIFICATO
+// SERVER BLACKJACK CON HTTP + WEBSOCKET
+const express = require('express');
+const http = require('http');
 const WebSocket = require('ws');
-const server = new WebSocket.Server({ port: 8080 });
+
+// Setup Express e HTTP server
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// Serve file statici dalla cartella 'public'
+app.use(express.static('public'));
 
 // Tavoli attivi
 const tavoli = new Map();
@@ -33,12 +42,14 @@ function punteggio(carte) {
     return s;
 }
 
-// Gestione connessioni
-server.on('connection', ws => {
+// Gestione connessioni WebSocket
+wss.on('connection', ws => {
     let cod = null;
+    console.log('Nuovo client connesso');
 
     ws.on('message', msg => {
         const m = msg.toString();
+        console.log('Ricevuto:', m);
 
         // Crea tavolo
         if (m === 'CREATE') {
@@ -81,6 +92,7 @@ server.on('connection', ws => {
     });
 
     ws.on('close', () => {
+        console.log('Client disconnesso');
         if (cod) tavoli.delete(cod);
     });
 });
@@ -130,4 +142,10 @@ function turnoDealer(cod) {
     }, 1000);
 }
 
-console.log('Server attivo su porta 8080');
+// Avvia server
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+    console.log(`Server attivo su porta ${PORT}`);
+    console.log(`HTTP: http://localhost:${PORT}`);
+    console.log(`WebSocket: ws://localhost:${PORT}`);
+});
