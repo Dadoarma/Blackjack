@@ -1,159 +1,256 @@
-// SERVER BLACKJACK CON HTTP + WEBSOCKET
 const express = require('express');
 const http = require('http');
-const WebSocket = require('ws');
+const WebSocket = require("ws");
+const path = require('path');
 
 // Setup Express e HTTP server
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
-// Serve file statici dalla cartella 'public'
-// Questo serve il file 'public/index.html' come pagina principale
-app.use(express.static('public'));
+// ************************************************
+// 💡 SOLUZIONE PER SERVIRE FILE NELLA ROOT
+// ************************************************
+// Servire tutti i file statici dalla directory radice
+app.use(express.static(__dirname)); 
 
-// Tavoli attivi
-const tavoli = new Map();
+// Definire esplicitamente la rotta root per client.html (essenziale)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client.html')); 
+});
+// ************************************************
 
-// Mazzo di carte
-const CARTE = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-const SEMI = ['♠', '♥', '♦', '♣'];
+const wss = new WebSocket.Server({ server }); // Collega WS al server HTTP
+const tables = {};
+const MAX = 5;
 
-// Genera mazzo e lo mescola
-function mazzo() {
-    const m = [];
-    for (let s of SEMI) for (let c of CARTE) m.push(c + s);
-    return m.sort(() => Math.random() - 0.5);
+// Porta dinamica di Render (o 8080 locale)
+const PORT = process.env.PORT || 8080;
+
+console.log(`🎰 Server starting on port ${PORT}...`);
+
+// ************************************************
+// LOGICA WEBSOCKETS (TUTTA LA TUA LOGICA GIOCO QUI SOTTO)
+// ************************************************
+
+wss.on("connection", ws => {
+    ws.q = [];
+    ws.table = null;
+    
+    ws.on("message", m => {
+        const msg = m.toString().trim();
+        
+        if (msg === "CREATE") {
+            const code = genCode();
+            tables[code] = { c: [], h: [], d: [], run: false };
+            join(ws, code);
+            ws.send(`TABLE_CREATED ${code}`);
+            console.log(`✅ Table ${code} created`);
+        } else if (msg.startsWith("JOIN ")) {
+            const code = msg.split(" ")[1];
+            if (!tables[code]) ws.send("TABLE_NOT_FOUND");
+            else if (tables[code].c.length >= MAX) ws.send("TABLE_FULL");
+            else {
+                join(ws, code);
+                ws.send(`TABLE_JOINED ${code}`);
+                console.log(`✅ Joined ${code} (${tables[code].c.length}/${MAX})`);
+                if (tables[code].c.length === 1 && !tables[code].run) {
+                     tables[code].run = true;
+                     setTimeout(() => game(code), 1000);
+                }
+            }
+        } else {
+            ws.q.push(msg.toUpperCase());
+        }
+    });
+    
+    ws.on("close", () => {
+        if (ws.table) {
+            const t = tables[ws.table];
+            const i = t.c.indexOf(ws);
+            if (i !== -1) {
+                t.c.splice(i, 1);
+                t.h.splice(i, 1);
+                console.log(`❌ Player left ${ws.table}`);
+                if (t.c.length === 0) {
+                    delete tables[ws.table];
+                    console.log(`🗑️  Deleted ${ws.table}`);
+                }
+            }
+        }
+    });
+});
+
+function genCode() {
+    let c;
+    do c = Array(6).fill().map(() => "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.random() * 36 | 0]).join("");
+    while (tables[c]);
+    return c;
 }
 
-// Genera codice tavolo di 6 caratteri
-function codice() {
-    return Math.random().toString(36).substr(2, 6).toUpperCase();
-}
-
-// Calcola punteggio del Blackjack (gestisce gli Assi come 1 o 11)
-function punteggio(carte) {
-    let s = 0, a = 0;
-    for (let c of carte) {
-        const v = c.slice(0, -1);
-        if (v === 'A') { s += 11; a++; }
-        else s += ['J', 'Q', 'K'].includes(v) ? 10 : +v;
+function join(ws, code) {
+    ws.table = code;
+    const t = tables[code];
+    t.c.push(ws);
+    t.h.push([]);
+    if (!t.run && t.c.length > 0) {
+        t.run = true;
+        setTimeout(() => game(code), 1000);
     }
-    // Riduci il valore degli Assi se si sballa (oltre 21)
+}
+
+async function game(code) {
+    const t = tables[code];
+    if (!t) return;
+    
+    console.log(`\n🎮 [${code}] Game start`);
+    
+    // Init deck
+    t.d = [];
+    for (let s of ["♥", "♦", "♣", "♠"]) 
+        for (let v = 1; v <= 13; v++) 
+            t.d.push({ v, s });
+    for (let i = t.d.length - 1; i > 0; i--) {
+        const j = Math.random() * (i + 1) | 0;
+        [t.d[i], t.d[j]] = [t.d[j], t.d[i]];
+    }
+    
+    // Reset
+    t.h = t.c.map(() => []);
+    all(t, "DEALER_RESET");
+    await wait(300);
+    
+    // Dealer
+    const dealer = [draw(t), draw(t)];
+    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
+    await wait(800);
+    
+    // Players
+    for (let i = 0; i < t.c.length; i++) {
+        t.h[i] = [draw(t), draw(t)];
+        send(t, i, `CARDS ${t.h[i].map(fmt).join(",")}`);
+    }
+    await wait(500);
+    
+    // Turns
+    for (let i = 0; i < t.c.length; i++) {
+        if (!t.c[i]) continue;
+        console.log(`🎯 [${code}] P${i + 1} turn`);
+        while (val(t.h[i]) < 21) {
+            send(t, i, "YOUR_TURN");
+            const r = await resp(t, i);
+            if (r === "HIT") {
+                t.h[i].push(draw(t));
+                send(t, i, `CARDS ${t.h[i].map(fmt).join(",")}`);
+                if (val(t.h[i]) > 21) break;
+            } else break;
+        }
+    }
+    
+    // Dealer plays if anyone <= 21
+    const alive = t.h.some(h => val(h) <= 21);
+    if (alive) {
+        console.log(`🎲 [${code}] Dealer turn`);
+        all(t, "DEALER_REVEAL");
+        await wait(1000);
+        while (val(dealer) < 17) {
+            await wait(800);
+            dealer.push(draw(t));
+            all(t, `DEALER_CARD ${fmt(dealer[dealer.length - 1])}`);
+        }
+    } else {
+        console.log(`💥 [${code}] All bust`);
+        all(t, "DEALER_REVEAL");
+        await wait(1000);
+    }
+    
+    const dv = val(dealer);
+    console.log(`🏁 [${code}] Dealer: ${dv}`);
+    
+    // Results
+    for (let i = 0; i < t.c.length; i++) {
+        const p = val(t.h[i]);
+        const res = p > 21 ? "LOSE" : dv > 21 ? "WIN" : p > dv ? "WIN" : p === dv ? "PUSH" : "LOSE";
+        send(t, i, `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
+    }
+    await wait(1000);
+    
+    // Replay
+    const keep = [];
+    for (let i = 0; i < t.c.length; i++) {
+        if (!t.c[i]) continue;
+        send(t, i, "PLAY_AGAIN?");
+        if (await resp(t, i) === "YES") keep.push(t.c[i]);
+        else t.c[i].close();
+    }
+    
+    t.c = keep;
+    t.h = keep.map(() => []);
+    
+    if (t.c.length > 0) {
+        console.log(`♻️  [${code}] Next round`);
+        await wait(2000);
+        game(code);
+    } else {
+        console.log(`⏸️  [${code}] Empty`);
+        delete tables[code];
+    }
+}
+
+function all(t, m) {
+    t.c.forEach((c, i) => send(t, i, m));
+}
+
+function send(t, i, m) {
+    if (t.c[i]?.readyState === 1) t.c[i].send(m);
+}
+
+function resp(t, i) {
+    return new Promise(r => {
+        let time = 0;
+        const iv = setInterval(() => {
+            time += 200;
+            if (t.c[i]?.q.length) {
+                clearInterval(iv);
+                r(t.c[i].q.shift());
+            } else if (time >= 30000) {
+                clearInterval(iv);
+                r("STAND"); 
+            }
+        }, 200);
+    });
+}
+
+function draw(t) {
+    if (!t.d.length) {
+        console.log("⚠️  Reshuffle");
+        for (let s of ["♥", "♦", "♣", "♠"]) 
+            for (let v = 1; v <= 13; v++) 
+                t.d.push({ v, s });
+    }
+    return t.d.shift();
+}
+
+function val(h) {
+    let s = 0, a = 0;
+    for (let c of h) {
+        if (c.v === 1) { s += 11; a++; }
+        else s += c.v >= 11 ? 10 : c.v;
+    }
     while (s > 21 && a > 0) { s -= 10; a--; }
     return s;
 }
 
-// Inizia partita (gestione logica di gioco e distribuzione iniziale)
-function inizia(cod) {
-    const t = tavoli.get(cod);
-    if (!t) return;
-    
-    t.mazzo = mazzo();
-    t.pc = [t.mazzo.pop(), t.mazzo.pop()]; // Giocatore
-    t.dc = [t.mazzo.pop(), t.mazzo.pop()]; // Banco
-    
-    // Invia lo stato iniziale al client
-    t.plr.send('DEALER_RESET');
-    t.plr.send('CARDS ' + t.pc.join(','));
-    t.plr.send('DEALER_INIT ' + t.dc[0] + ' ' + t.dc[1]); // Prima carta nascosta, seconda visibile
-    t.plr.send('YOUR_TURN');
+function fmt(c) {
+    const v = c.v === 1 ? "A" : c.v === 11 ? "J" : c.v === 12 ? "Q" : c.v === 13 ? "K" : c.v;
+    return `${v}${c.s}`;
 }
 
-// Turno del Banco
-function turnoDealer(cod) {
-    const t = tavoli.get(cod);
-    if (!t) return;
-    
-    // Rimuove la carta nascosta
-    t.plr.send('DEALER_REVEAL');
-    
-    setTimeout(() => {
-        // Dealer pesca fino a 17
-        const drawInterval = setInterval(() => {
-            if (punteggio(t.dc) < 17) {
-                t.dc.push(t.mazzo.pop());
-                t.plr.send('DEALER_CARD ' + t.dc[t.dc.length - 1]);
-            } else {
-                clearInterval(drawInterval);
-                calcolaRisultato(cod);
-            }
-        }, 500); // Ritmo di pesca del dealer
-    }, 1000);
+function wait(ms) {
+    return new Promise(r => setTimeout(r, ms));
 }
 
-// Calcola il vincitore e invia il risultato
-function calcolaRisultato(cod) {
-    const t = tavoli.get(cod);
-    if (!t) return;
-    
-    const pp = punteggio(t.pc);
-    const dp = punteggio(t.dc);
-    let ris = 'PUSH';
-    
-    if (pp > 21) ris = 'LOSE';
-    else if (dp > 21) ris = 'WIN';
-    else if (pp > dp) ris = 'WIN';
-    else if (pp < dp) ris = 'LOSE';
-    
-    t.plr.send('RESULT ' + ris);
-    setTimeout(() => t.plr.send('PLAY_AGAIN?'), 1000);
-}
-
-// Gestione connessioni WebSocket
-wss.on('connection', ws => {
-    let cod = null;
-    console.log('Nuovo client connesso');
-
-    ws.on('message', msg => {
-        const m = msg.toString();
-        console.log('Ricevuto:', m);
-
-        // CREAZIONE E JOIN
-        if (m === 'CREATE') {
-            cod = codice();
-            tavoli.set(cod, { plr: ws, mazzo: mazzo(), pc: [], dc: [] });
-            ws.send('TABLE_CREATED ' + cod);
-        }
-        else if (m.startsWith('JOIN')) {
-            cod = m.split(' ')[1];
-            const t = tavoli.get(cod);
-            if (!t) ws.send('TABLE_NOT_FOUND');
-            else if (t.plr !== ws && t.plr) ws.send('TABLE_FULL');
-            else {
-                t.plr = ws;
-                ws.send('TABLE_JOINED ' + cod);
-                inizia(cod);
-            }
-        }
-        
-        // COMANDI DI GIOCO
-        else if (m === 'HIT') {
-            const t = tavoli.get(cod);
-            if (!t) return;
-            t.pc.push(t.mazzo.pop());
-            ws.send('CARDS ' + t.pc.join(','));
-            if (punteggio(t.pc) >= 21) turnoDealer(cod);
-        }
-        else if (m === 'STAND') {
-            turnoDealer(cod);
-        }
-        else if (m === 'YES') {
-            inizia(cod);
-        }
-    });
-
-    ws.on('close', () => {
-        console.log('Client disconnesso');
-        // Rimuove il tavolo se il giocatore è l'unico connesso (oppure logica più complessa per N giocatori)
-        if (cod) tavoli.delete(cod); 
-    });
-});
-
-// Avvia server
-const PORT = process.env.PORT || 8080;
+// Avvia il server HTTP (e WS)
 server.listen(PORT, () => {
-    console.log(`Server attivo su porta ${PORT}`);
-    console.log(`HTTP: http://localhost:${PORT}`);
-    console.log(`WebSocket: ws://localhost:${PORT}`);
+    console.log(`🌐 HTTP server listening on port ${PORT}`);
+    console.log(`💬 WebSocket server active`);
 });
