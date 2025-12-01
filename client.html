@@ -3,170 +3,233 @@
 <head>
     <title>Blackjack</title>
     <style>
-        body { font-family: Arial; background: #2e7d32; color: white; text-align: center; padding: 20px; }
+        body { 
+            font-family: Arial; 
+            background: #2e7d32; 
+            color: white; 
+            text-align: center; 
+            padding: 20px; 
+        }
         .hidden { display: none; }
-        .lobby-box { background: #1b5e20; padding: 30px; border-radius: 10px; max-width: 500px; margin: 50px auto; }
-        .lobby-box input { padding: 10px; font-size: 16px; margin: 10px 0; width: 80%; border-radius: 5px; border: none; }
-        #table-code { background: #388e3c; padding: 15px; border-radius: 5px; margin: 20px 0; font-size: 20px; font-weight: bold; }
-        #log { background: #1b5e20; padding: 10px; border-radius: 5px; margin: 20px auto; width: 80%; max-height: 300px; overflow-y: auto; text-align: left; }
-        button { margin: 10px; padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; background: #4caf50; color: white; font-weight: bold; }
+        .lobby-box { 
+            background: #1b5e20; 
+            padding: 25px; 
+            border-radius: 8px; 
+            max-width: 350px; 
+            margin: 40px auto; 
+        }
+        .lobby-box input { 
+            padding: 8px; 
+            font-size: 15px; 
+            margin: 8px 0; 
+            width: 80%; 
+            border-radius: 4px; 
+            border: none; 
+        }
+        #table-code { 
+            background: #388e3c; 
+            padding: 8px; 
+            border-radius: 4px; 
+            margin: 8px 0; 
+            font-size: 16px; 
+        }
+        button { 
+            margin: 5px; 
+            padding: 8px 16px; 
+            font-size: 15px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            background: #4caf50; 
+            color: white; 
+        }
         button:hover:not(:disabled) { background: #388e3c; }
         button:disabled { background: #666; cursor: not-allowed; }
         .leave { background: #d32f2f; }
-        .leave:hover { background: #b71c1c; }
-        .card { display: inline-block; margin: 5px; padding: 15px 20px; background: white; color: black; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .card { 
+            display: inline-block; 
+            margin: 4px; 
+            padding: 12px 16px; 
+            background: white; 
+            color: black; 
+            border-radius: 6px; 
+            font-size: 22px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); 
+        }
         .card.hidden { background: #1565c0; color: white; }
-        .cards { margin: 20px 0; min-height: 80px; }
-        .value { font-size: 16px; color: #ffeb3b; margin: 5px 0; }
+        .cards { margin: 15px 0; min-height: 70px; }
+        .value { font-size: 16px; color: #ffeb3b; margin: 8px 0; }
     </style>
 </head>
 <body>
 <h1>🎰 Blackjack</h1>
 
+<!-- LOBBY -->
 <div id="lobby">
     <div class="lobby-box">
-        <h2>Welcome!</h2>
-        <button onclick="connect('CREATE')">Create Table</button>
+        <h2>Benvenuto!</h2>
+        <button onclick="crea()">Crea Tavolo</button>
         <hr>
-        <input id="code" placeholder="Enter 6-char code" maxlength="6">
-        <button onclick="connect('JOIN ' + code.value.toUpperCase())">Join Table</button>
+        <input id="code" placeholder="Codice 6 caratteri" maxlength="6">
+        <button onclick="unisciti()">Unisciti</button>
     </div>
 </div>
 
+<!-- GIOCO -->
 <div id="game" class="hidden">
     <div id="table-code"></div>
-    <h3>Dealer</h3>
+    <h3>Banco</h3>
     <div id="dval" class="value"></div>
     <div id="dcards" class="cards"></div>
-    <h3>Player</h3>
+    <h3>Giocatore</h3>
     <div id="pval" class="value"></div>
     <div id="pcards" class="cards"></div>
-    <button id="hit" onclick="send('HIT')" disabled>HIT</button>
-    <button id="stand" onclick="send('STAND')" disabled>STAND</button>
-    <button id="again" onclick="send('YES')" disabled>PLAY AGAIN</button>
-    <button class="leave" onclick="leave()">LEAVE</button>
-    <div id="log"></div>
+    <div>
+        <button id="hit" onclick="cmd('HIT')" disabled>CARTA</button>
+        <button id="stand" onclick="cmd('STAND')" disabled>STAI</button>
+        <button id="again" onclick="cmd('YES')" disabled>ANCORA</button>
+    </div>
+    <button class="leave" onclick="esci()">ESCI</button>
 </div>
 
 <script>
-let ws, play = false, pc = [], dc = [];
+let ws, turno = false, pc = [], dc = [];
 
-function connect(msg) {
-    // ✅ Modifica qui: usa wss:// per WebSocket sicuro su Render
+// Crea tavolo
+function crea() {
+    connetti('CREATE');
+}
+
+// Unisciti a tavolo
+function unisciti() {
+    const c = document.getElementById('code').value.toUpperCase();
+    if (c.length === 6) connetti('JOIN ' + c);
+    else alert('Inserisci 6 caratteri');
+}
+
+// Connessione WebSocket
+function connetti(msg) {
     ws = new WebSocket("wss://blackjack-dlw3.onrender.com");
-    
     ws.onopen = () => ws.send(msg);
-
     ws.onmessage = async e => {
         const d = e.data;
-        log(d);
         
-        if (d.startsWith("TABLE_CREATED") || d.startsWith("TABLE_JOINED")) {
-            lobby.classList.add("hidden");
-            game.classList.remove("hidden");
-            document.getElementById("table-code").textContent = "Code: " + d.split(" ")[1];
-        } else if (d === "TABLE_NOT_FOUND") {
-            alert("Table not found!");
-        } else if (d === "TABLE_FULL") {
-            alert("Table full!");
-        } else if (d.startsWith("CARDS")) {
-            const cards = d.split(" ")[1].split(",");
-            for (let c of cards.slice(pc.length)) {
-                add(pcards, c);
-                await wait(400);
+        if (d.startsWith("TABLE_")) {
+            if (d.includes("CREATED") || d.includes("JOINED")) {
+                mostra(d.split(" ")[1]);
+            } else if (d.includes("NOT_FOUND")) {
+                alert("Tavolo non trovato!");
+            } else if (d.includes("FULL")) {
+                alert("Tavolo pieno!");
             }
-            pc = cards;
-            update(pval, pc);
+        } else if (d.startsWith("CARDS")) {
+            const carte = d.split(" ")[1].split(",");
+            for (let i = pc.length; i < carte.length; i++) {
+                add('pcards', carte[i]);
+                await wait(300);
+            }
+            pc = carte;
+            upd('pval', pc);
         } else if (d === "DEALER_RESET") {
-            dcards.innerHTML = "";
+            document.getElementById('dcards').innerHTML = "";
             dc = [];
-            dval.textContent = "";
+            document.getElementById('dval').textContent = "";
         } else if (d.startsWith("DEALER_INIT")) {
             const p = d.split(" ");
             dc = [p[1], p[2]];
-            dcards.innerHTML = "";
-            add(dcards, "🂠", true);
-            await wait(400);
-            add(dcards, p[2]);
-            dval.textContent = "Showing: " + val(p[2]);
+            document.getElementById('dcards').innerHTML = "";
+            add('dcards', "🂠", true);
+            await wait(300);
+            add('dcards', p[2]);
+            document.getElementById('dval').textContent = "Mostra: " + val(p[2]);
         } else if (d === "YOUR_TURN") {
-            play = true;
-            btns(true, true, false);
+            turno = true;
+            btn(true, true, false);
         } else if (d === "DEALER_REVEAL") {
-            dcards.children[0].textContent = dc[0];
-            dcards.children[0].classList.remove("hidden");
-            update(dval, dc);
-            await wait(500);
+            const cards = document.getElementById('dcards').children;
+            cards[0].textContent = dc[0];
+            cards[0].classList.remove("hidden");
+            upd('dval', dc);
+            await wait(400);
         } else if (d.startsWith("DEALER_CARD")) {
             const c = d.split(" ")[1];
             dc.push(c);
-            add(dcards, c);
-            await wait(400);
-            update(dval, dc);
+            add('dcards', c);
+            await wait(300);
+            upd('dval', dc);
         } else if (d.startsWith("RESULT")) {
-            play = false;
-            btns(false, false, false);
-            log((d.includes("WIN") ? "🎉" : d.includes("LOSE") ? "😞" : "🤝") + " " + d.split(" ")[1]);
+            turno = false;
+            btn(false, false, false);
         } else if (d === "PLAY_AGAIN?") {
-            play = false;
-            btns(false, false, true);
+            turno = false;
+            btn(false, false, true);
         }
     };
 }
 
-function send(m) {
-    if (ws.readyState !== 1) return;
-    if (!play && m !== "YES") return;
-    ws.send(m);
-    log("> " + m);
-    if (m === "HIT" || m === "STAND") {
-        play = false;
-        btns(false, false, false);
-    } else if (m === "YES") {
+// Mostra gioco
+function mostra(cod) {
+    document.getElementById('lobby').classList.add("hidden");
+    document.getElementById('game').classList.remove("hidden");
+    document.getElementById('table-code').textContent = "Codice: " + cod;
+}
+
+// Invia comando
+function cmd(c) {
+    if (ws.readyState !== 1 || (!turno && c !== "YES")) return;
+    ws.send(c);
+    if (c === "HIT" || c === "STAND") {
+        turno = false;
+        btn(false, false, false);
+    } else if (c === "YES") {
         pc = dc = [];
-        pcards.innerHTML = dcards.innerHTML = "";
-        pval.textContent = dval.textContent = "";
+        document.getElementById('pcards').innerHTML = "";
+        document.getElementById('dcards').innerHTML = "";
+        document.getElementById('pval').textContent = "";
+        document.getElementById('dval').textContent = "";
     }
 }
 
-function leave() {
+// Esci
+function esci() {
     ws.close();
-    game.classList.add("hidden");
-    lobby.classList.remove("hidden");
+    document.getElementById('game').classList.add("hidden");
+    document.getElementById('lobby').classList.remove("hidden");
     pc = dc = [];
-    pcards.innerHTML = dcards.innerHTML = "";
-    pval.textContent = dval.textContent = "";
-    document.getElementById("log").textContent = "";
+    document.getElementById('pcards').innerHTML = "";
+    document.getElementById('dcards').innerHTML = "";
+    document.getElementById('pval').textContent = "";
+    document.getElementById('dval').textContent = "";
 }
 
-function btns(h, s, a) {
-    hit.disabled = !h;
-    stand.disabled = !s;
-    again.disabled = !a;
+// Abilita/disabilita bottoni
+function btn(h, s, a) {
+    document.getElementById('hit').disabled = !h;
+    document.getElementById('stand').disabled = !s;
+    document.getElementById('again').disabled = !a;
 }
 
-function add(el, txt, hid) {
+// Aggiungi carta
+function add(el, txt, hid = false) {
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
     d.textContent = txt;
-    el.appendChild(d);
+    document.getElementById(el).appendChild(d);
 }
 
-function log(t) {
-    document.getElementById("log").textContent += t + "\n";
-    document.getElementById("log").scrollTop = 999999;
-}
-
+// Attendi
 function wait(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
+// Valore carta singola
 function val(c) {
     const v = c.slice(0, -1);
     return v === "A" ? 11 : ["J", "Q", "K"].includes(v) ? 10 : +v;
 }
 
-function sum(cards) {
+// Calcola punteggio
+function calc(cards) {
     let s = 0, a = 0;
     for (let c of cards) {
         const v = c.slice(0, -1);
@@ -177,9 +240,11 @@ function sum(cards) {
     return s;
 }
 
-function update(el, cards) {
-    const s = sum(cards);
-    el.textContent = "Value: " + s + (s > 21 ? " - BUST!" : s === 21 ? " - BLACKJACK!" : "");
+// Aggiorna punteggio
+function upd(el, cards) {
+    const s = calc(cards);
+    document.getElementById(el).textContent = "Valore: " + s + 
+        (s > 21 ? " - SBALLATO!" : s === 21 ? " - BLACKJACK!" : "");
 }
 </script>
 </body>
