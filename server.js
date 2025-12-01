@@ -178,6 +178,7 @@ async function game(code) {
     const dv = val(dealer);
     console.log(`🏁 [${code}] Dealer: ${dv}`);
     
+    // Invia il risultato *e* l'intera mano finale del dealer
     for (let i = 0; i < t.c.length; i++) {
         const p = val(t.h[i]);
         let res;
@@ -188,6 +189,7 @@ async function game(code) {
         else if (p === dv) res = "PUSH";
         else res = "LOSE";
         
+        // Messaggio completo che il client usa per ricostruire la mano del dealer
         send(t.c[i], `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
     }
     await wait(1000);

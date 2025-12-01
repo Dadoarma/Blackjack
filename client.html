@@ -175,13 +175,14 @@
 </div>
 
 <script>
-// Riferimenti agli elementi (meno DOM access)
+// Riferimenti agli elementi
 const [lobby, game, pcards, dcards, pval, dval, hit, stand, again] = 
     ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again'].map(id => document.getElementById(id));
 
 let ws, play = false, pc = [], dc = [];
 
 function connect(msg) {
+    // Connessione dinamica (wss per HTTPS/Render, ws per locale)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     ws = new WebSocket(`${protocol}//${host}`);
@@ -189,7 +190,6 @@ function connect(msg) {
     ws.onopen = () => ws.send(msg);
     ws.onmessage = async e => {
         const d = e.data;
-        // console.log(d); // Usa console.log per il debug locale
         
         const [cmd, data] = d.split(' ', 2);
 
@@ -217,15 +217,21 @@ function connect(msg) {
             dc = pc = [];
         } else if (cmd === "DEALER_INIT") {
             const p = data.split(" ");
-            dc = p;
-            add(dcards, "🂠", true);
+            dcards.innerHTML = "";
+            dc = p; // dc = [carta1, carta2]
+            
+            // Carta coperta (div.card.hidden)
+            add(dcards, "🂠", true); 
             await wait(400);
+            
+            // Carta scoperta (la seconda)
             add(dcards, p[1]);
             dval.textContent = "Showing: " + val(p[1]);
         } else if (cmd === "YOUR_TURN") {
             play = true;
             btns(true, true, false);
         } else if (cmd === "DEALER_REVEAL") {
+            // Gira la prima carta
             dcards.children[0].textContent = dc[0];
             dcards.children[0].classList.remove("hidden");
             update(dval, dc);
@@ -236,9 +242,28 @@ function connect(msg) {
             await wait(400);
             update(dval, dc);
         } else if (cmd === "RESULT") {
+            // --- CORREZIONE DEL PROBLEMA: Visualizza la mano finale del dealer ---
             play = false;
             btns(false, false, false);
-            // Non c'è più il log, l'utente vede il risultato dal cambiamento di stato del gioco
+            
+            // Il messaggio RESULT è: RESULT [status] DEALER [carta1],[carta2],...
+            const parts = d.split(" ");
+            const dealerCardsStr = parts[3]; 
+
+            if (dealerCardsStr) {
+                const finalDealerCards = dealerCardsStr.split(',');
+                
+                // Rimuove gli elementi precedenti e reimposta
+                dcards.innerHTML = ""; 
+                dc = [];
+                
+                // Aggiungi le carte finali del dealer (tutte scoperte)
+                for (const card of finalDealerCards) {
+                    dc.push(card);
+                    add(dcards, card);
+                }
+                update(dval, dc);
+            }
         } else if (cmd === "PLAY_AGAIN?") {
             play = false;
             btns(false, false, true);
@@ -255,7 +280,6 @@ function send(m) {
         play = false;
         btns(false, false, false);
     } 
-    // "YES" viene gestito dal server con DEALER_RESET
 }
 
 function leave() {
