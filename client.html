@@ -95,89 +95,104 @@
 <script>
 let ws, turno = false, pc = [], dc = [];
 
-// Crea tavolo
+// Crea tavolo: Inizializza la connessione WebSocket inviando il comando 'CREATE'
 function crea() {
     connetti('CREATE');
 }
 
-// Unisciti a tavolo
+// Unisciti a tavolo: Legge il codice e invia il comando 'JOIN XXXXXX'
 function unisciti() {
     const c = document.getElementById('code').value.toUpperCase();
     if (c.length === 6) connetti('JOIN ' + c);
     else alert('Inserisci 6 caratteri');
 }
 
-// Connessione WebSocket
+// Connessione WebSocket principale
 function connetti(msg) {
-    // Usa l'URL corrente per determinare il protocollo WebSocket
+    // Usa l'URL e il protocollo del browser corrente (wss: se HTTPS, ws: altrimenti)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     ws = new WebSocket(`${protocol}//${host}`);
+    
+    // Appena la connessione è aperta, invia il messaggio iniziale
     ws.onopen = () => ws.send(msg);
+    
+    // Gestione messaggi ricevuti dal server
     ws.onmessage = async e => {
         const d = e.data;
         
+        // Gestione Lobby/Tavolo
         if (d.startsWith("TABLE_")) {
+            const cod = d.split(" ")[1];
             if (d.includes("CREATED") || d.includes("JOINED")) {
-                mostra(d.split(" ")[1]);
+                mostra(cod);
             } else if (d.includes("NOT_FOUND")) {
                 alert("Tavolo non trovato!");
             } else if (d.includes("FULL")) {
                 alert("Tavolo pieno!");
             }
+        // Carte Giocatore
         } else if (d.startsWith("CARDS")) {
             const carte = d.split(" ")[1].split(",");
+            // Aggiunge le carte mancanti con un piccolo ritardo per l'animazione
             for (let i = pc.length; i < carte.length; i++) {
                 add('pcards', carte[i]);
                 await wait(300);
             }
             pc = carte;
-            upd('pval', pc);
+            upd('pval', pc); // Aggiorna punteggio giocatore
+        // Reset Banco
         } else if (d === "DEALER_RESET") {
             document.getElementById('dcards').innerHTML = "";
             dc = [];
             document.getElementById('dval').textContent = "";
+        // Inizializzazione Banco
         } else if (d.startsWith("DEALER_INIT")) {
             const p = d.split(" ");
             dc = [p[1], p[2]];
             document.getElementById('dcards').innerHTML = "";
-            add('dcards', "🂠", true);
+            add('dcards', "🂠", true); // Carta coperta
             await wait(300);
-            add('dcards', p[2]);
+            add('dcards', p[2]); // Carta scoperta
             document.getElementById('dval').textContent = "Mostra: " + val(p[2]);
+        // È il tuo turno
         } else if (d === "YOUR_TURN") {
             turno = true;
-            btn(true, true, false);
+            btn(true, true, false); // Abilita HIT e STAND
+        // Il Banco rivela la carta coperta
         } else if (d === "DEALER_REVEAL") {
             const cards = document.getElementById('dcards').children;
             cards[0].textContent = dc[0];
             cards[0].classList.remove("hidden");
-            upd('dval', dc);
+            upd('dval', dc); // Aggiorna punteggio banco
             await wait(400);
+        // Il Banco pesca
         } else if (d.startsWith("DEALER_CARD")) {
             const c = d.split(" ")[1];
             dc.push(c);
             add('dcards', c);
             await wait(300);
             upd('dval', dc);
+        // Risultato del round
         } else if (d.startsWith("RESULT")) {
             turno = false;
             btn(false, false, false);
+            // Qui potresti mostrare un messaggio più esplicito per il risultato
         } else if (d === "PLAY_AGAIN?") {
             turno = false;
-            btn(false, false, true);
+            btn(false, false, true); // Abilita il bottone "ANCORA"
         }
     };
 }
 
-// Mostra gioco
+// Mostra interfaccia di gioco
 function mostra(cod) {
     document.getElementById('lobby').classList.add("hidden");
     document.getElementById('game').classList.remove("hidden");
     document.getElementById('table-code').textContent = "Codice: " + cod;
 }
 
-// Invia comando
+// Invia comando di gioco
 function cmd(c) {
     if (ws.readyState !== 1 || (!turno && c !== "YES")) return;
     ws.send(c);
@@ -185,6 +200,7 @@ function cmd(c) {
         turno = false;
         btn(false, false, false);
     } else if (c === "YES") {
+        // Reset l'interfaccia se si gioca di nuovo
         pc = dc = [];
         document.getElementById('pcards').innerHTML = "";
         document.getElementById('dcards').innerHTML = "";
@@ -193,11 +209,12 @@ function cmd(c) {
     }
 }
 
-// Esci
+// Esci dal tavolo
 function esci() {
-    ws.close();
+    if (ws) ws.close();
     document.getElementById('game').classList.add("hidden");
     document.getElementById('lobby').classList.remove("hidden");
+    // Reset dello stato locale
     pc = dc = [];
     document.getElementById('pcards').innerHTML = "";
     document.getElementById('dcards').innerHTML = "";
@@ -205,14 +222,14 @@ function esci() {
     document.getElementById('dval').textContent = "";
 }
 
-// Abilita/disabilita bottoni
+// Abilita/disabilita bottoni di gioco
 function btn(h, s, a) {
     document.getElementById('hit').disabled = !h;
     document.getElementById('stand').disabled = !s;
     document.getElementById('again').disabled = !a;
 }
 
-// Aggiungi carta
+// Aggiungi un elemento carta al DOM
 function add(el, txt, hid = false) {
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
@@ -220,18 +237,18 @@ function add(el, txt, hid = false) {
     document.getElementById(el).appendChild(d);
 }
 
-// Attendi
+// Promessa per ritardare l'esecuzione (usato per animazioni)
 function wait(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
-// Valore carta singola
+// Valore carta singola (solo il numero)
 function val(c) {
     const v = c.slice(0, -1);
     return v === "A" ? 11 : ["J", "Q", "K"].includes(v) ? 10 : +v;
 }
 
-// Calcola punteggio
+// Calcola punteggio (logica Assi come 1 o 11)
 function calc(cards) {
     let s = 0, a = 0;
     for (let c of cards) {
@@ -243,7 +260,7 @@ function calc(cards) {
     return s;
 }
 
-// Aggiorna punteggio
+// Aggiorna la visualizzazione del punteggio
 function upd(el, cards) {
     const s = calc(cards);
     document.getElementById(el).textContent = "Valore: " + s + 

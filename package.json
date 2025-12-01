@@ -1,17 +1,13 @@
 {
-  "name": "blackjack-server",
+  "name": "Blackjack-main",
   "version": "1.0.0",
-  "description": "Blackjack multiplayer",
+  "description": "Blackjack con WebSockets",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js" 
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "ws": "^8.14.2"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "license": "MIT"
+    "express": "^4.19.2",
+    "ws": "^8.18.3"
+  }
 }
