@@ -12,7 +12,7 @@
             --danger-color: #d32f2f;
             --shadow-light: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
-
+        
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             background: var(--bg-color); 
@@ -25,26 +25,118 @@
             align-items: center;
             min-height: 100vh;
         }
-        h1 { font-size: 2.5em; margin-bottom: 20px; color: var(--secondary-color); text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
 
         .hidden { display: none; }
-        .lobby-box, #game { background: #1b5e20; padding: 30px; border-radius: 12px; max-width: 90%; width: 450px; margin: 20px auto; box-shadow: var(--shadow-light); }
+        .lobby-box, #game { 
+            background: #1b5e20;
+            padding: 30px; 
+            border-radius: 12px; 
+            max-width: 90%;
+            width: 450px; 
+            margin: 20px auto; 
+            box-shadow: var(--shadow-light);
+        }
+        
+        .lobby-box input { 
+            padding: 10px; 
+            font-size: 16px; 
+            margin: 10px 0; 
+            width: 80%; 
+            border-radius: 6px; 
+            border: 1px solid #ccc; 
+            box-sizing: border-box;
+            text-transform: uppercase;
+        }
+        
+        #table-code { 
+            background: var(--primary-color); 
+            padding: 10px; 
+            border-radius: 6px; 
+            margin: 15px 0; 
+            font-size: 1.1em; 
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
 
-        .lobby-box input { padding: 10px; font-size: 16px; margin: 10px 0; width: 80%; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; text-transform: uppercase; }
-
-        #table-code { background: var(--primary-color); padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 1.1em; font-weight: bold; letter-spacing: 1px; }
-
-        button { margin: 8px; padding: 12px 24px; font-size: 16px; border: none; border-radius: 25px; cursor: pointer; background: var(--primary-color); color: white; transition: background 0.3s, opacity 0.3s; font-weight: bold; box-shadow: 0 4px 0 #388e3c; }
-        button:hover:not(:disabled) { background: #388e3c; box-shadow: 0 2px 0 #388e3c; transform: translateY(2px); }
-        button:disabled { background: #666; cursor: not-allowed; box-shadow: none; opacity: 0.7; transform: translateY(0); }
-        .leave { background: var(--danger-color); box-shadow: 0 4px 0 #9f2424; }
-        .leave:hover:not(:disabled) { background: #9f2424; box-shadow: 0 2px 0 #9f2424; }
-
-        .card { display: inline-block; margin: 6px; padding: 15px 18px; background: var(--card-color); color: black; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: var(--shadow-light); min-width: 30px; transition: transform 0.4s ease-out; border: 1px solid #aaa; }
-        .card.hidden { background: var(--card-back-color); color: var(--card-back-color); border: 1px solid var(--card-back-color); position: relative; }
-        .card.hidden::before { content: '♠'; color: white; font-size: 1.5em; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .cards { margin: 20px 0; min-height: 80px; }
-        .value { font-size: 1.2em; color: var(--secondary-color); margin: 10px 0; font-weight: bold; }
+        button { 
+            margin: 8px; 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            border: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            background: var(--primary-color); 
+            color: white; 
+            transition: background 0.3s, opacity 0.3s;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #388e3c; 
+        }
+        button:hover:not(:disabled) { 
+            background: #388e3c; 
+            box-shadow: 0 2px 0 #388e3c;
+            transform: translateY(2px);
+        }
+        button:disabled { 
+            background: #666; 
+            cursor: not-allowed; 
+            box-shadow: none;
+            opacity: 0.7;
+            transform: translateY(0);
+        }
+        .leave { 
+            background: var(--danger-color); 
+            box-shadow: 0 4px 0 #9f2424;
+        }
+        .leave:hover:not(:disabled) { 
+            background: #9f2424; 
+            box-shadow: 0 2px 0 #9f2424;
+        }
+        
+        .card { 
+            display: inline-block; 
+            margin: 6px; 
+            padding: 15px 18px; 
+            background: var(--card-color); 
+            color: black; 
+            border-radius: 8px; 
+            font-size: 24px; 
+            font-weight: bold;
+            box-shadow: var(--shadow-light); 
+            min-width: 30px; 
+            transition: transform 0.4s ease-out;
+            border: 1px solid #aaa;
+        }
+        .card.hidden { 
+            background: var(--card-back-color); 
+            color: var(--card-back-color); 
+            border: 1px solid var(--card-back-color);
+            position: relative;
+        }
+        .card.hidden::before {
+             content: '♠'; 
+             color: white;
+             font-size: 1.5em;
+             position: absolute;
+             top: 50%;
+             left: 50%;
+             transform: translate(-50%, -50%);
+        }
+        .cards { 
+            margin: 20px 0; 
+            min-height: 80px; 
+        }
+        .value { 
+            font-size: 1.2em; 
+            color: var(--secondary-color); 
+            margin: 10px 0; 
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -83,143 +175,158 @@ const [lobby, game, pcards, dcards, pval, dval, hit, stand, again] =
 
 let ws, play = false, pc = [], dc = [];
 
-// Carte come oggetti {value, hidden} per dealer
-function addCard(el, card) {
+function connect(msg) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    ws = new WebSocket(`${protocol}//${host}`);
+    
+    ws.onopen = () => ws.send(msg);
+    ws.onmessage = async e => {
+        const d = e.data;
+        const [cmd, data] = d.split(' ', 2);
+
+        if (cmd.startsWith("TABLE_")) {
+            if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
+                lobby.classList.add("hidden");
+                game.classList.remove("hidden");
+                document.getElementById("table-code").textContent = "Code: " + data;
+            } else if (cmd === "TABLE_NOT_FOUND") {
+                alert("Table not found!");
+            } else if (cmd === "TABLE_FULL") {
+                alert("Table full!");
+            }
+        } else if (cmd === "CARDS") {
+            const cards = data.split(",");
+            for (let c of cards.slice(pc.length)) {
+                add(pcards, c);
+                await wait(400);
+            }
+            pc = cards;
+            update(pval, pc);
+        } else if (cmd === "DEALER_RESET") {
+            dcards.innerHTML = dval.textContent = "";
+            pcards.innerHTML = pval.textContent = "";
+            dc = pc = [];
+        } else if (cmd === "DEALER_INIT") {
+            const p = data.split(" ");
+            dcards.innerHTML = "";
+            dc = p;
+            
+            add(dcards, "🂠", true); 
+            await wait(400);
+            
+            add(dcards, p[1]);
+            
+            const visibleValue = val(p[1]);
+            dval.textContent = "Showing: " + visibleValue;
+        } else if (cmd === "YOUR_TURN") {
+            play = true;
+            btns(true, true, false);
+        } else if (cmd === "DEALER_REVEAL") {
+            dcards.children[0].textContent = dc[0];
+            dcards.children[0].classList.remove("hidden");
+            update(dval, dc);
+            await wait(500);
+        } else if (cmd === "DEALER_CARD") {
+            dc.push(data);
+            add(dcards, data);
+            await wait(400);
+            update(dval, dc);
+        } else if (cmd === "RESULT") {
+            play = false;
+            btns(false, false, false);
+            
+            const parts = d.split(" ");
+            const dealerCardsStr = parts[3]; 
+
+            if (dealerCardsStr) {
+                const finalDealerCards = dealerCardsStr.split(',');
+                
+                dcards.innerHTML = ""; 
+                dc = [];
+                
+                for (const card of finalDealerCards) {
+                    dc.push(card);
+                    add(dcards, card);
+                }
+                update(dval, dc);
+            }
+        } else if (cmd === "PLAY_AGAIN?") {
+            again.disabled = false;
+            hit.disabled = true;
+            stand.disabled = true;
+            play = false; 
+        } else if (cmd === "PLAY_AGAIN_LOCK") {
+            again.disabled = true;
+            hit.disabled = true;
+            stand.disabled = true;
+            play = false;
+        }
+    };
+}
+
+function send(m) {
+    if (ws && ws.readyState !== 1) return;
+    
+    if (m === "YES" && again.disabled) return;
+    if (m === "HIT" && hit.disabled) return;
+    if (m === "STAND" && stand.disabled) return;
+    
+    ws.send(m);
+    
+    if (m === "HIT" || m === "STAND") {
+        play = false;
+        btns(false, false, false);
+    } else if (m === "YES") {
+        again.disabled = true;
+    }
+}
+
+function leave() {
+    if (ws) ws.close();
+    game.classList.add("hidden");
+    lobby.classList.remove("hidden");
+    dcards.innerHTML = pcards.innerHTML = "";
+    dval.textContent = pval.textContent = "";
+    dc = pc = [];
+}
+
+function btns(h, s, a) {
+    hit.disabled = !h;
+    stand.disabled = !s;
+    again.disabled = !a;
+}
+
+function add(el, txt, hid) {
     const d = document.createElement("div");
-    d.className = "card" + (card.hidden ? " hidden" : "");
-    d.textContent = card.value;
+    d.className = "card" + (hid ? " hidden" : "");
+    d.textContent = txt;
     el.appendChild(d);
 }
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+function wait(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
 
 function val(c) {
     const v = c.slice(0, -1);
-    return v === "A" ? 11 : ["J","Q","K"].includes(v) ? 10 : +v;
+    return v === "A" ? 11 : ["J", "Q", "K"].includes(v) ? 10 : +v;
 }
 
 function sum(cards) {
     let s = 0, a = 0;
     for (let c of cards) {
-        const v = c.slice(0,-1);
-        if (v==="A"){ s+=11;a++;} 
-        else s+= ["J","Q","K"].includes(v)?10:+v;
+        const v = c.slice(0, -1);
+        if (v === "A") { s += 11; a++; }
+        else s += ["J", "Q", "K"].includes(v) ? 10 : +v;
     }
-    while(s>21 && a>0){ s-=10;a--; }
+    while (s > 21 && a > 0) { s -= 10; a--; }
     return s;
 }
 
 function update(el, cards) {
     const s = sum(cards);
-    el.textContent = "Value: " + s + (s>21?" - BUST!":s===21?" - BLACKJACK!":"");
-}
-
-function connect(msg){
-    const protocol = window.location.protocol==='https:'?'wss:':'ws:';
-    const host = window.location.host;
-    ws = new WebSocket(`${protocol}//${host}`);
-    
-    ws.onopen = ()=>ws.send(msg);
-
-    ws.onmessage = async e=>{
-        const d = e.data;
-        const [cmd,data] = d.split(' ',2);
-
-        if(cmd.startsWith("TABLE_")){
-            if(cmd==="TABLE_CREATED" || cmd==="TABLE_JOINED"){
-                lobby.classList.add("hidden");
-                game.classList.remove("hidden");
-                document.getElementById("table-code").textContent = "Code: "+data;
-            } else if(cmd==="TABLE_NOT_FOUND") alert("Table not found!");
-            else if(cmd==="TABLE_FULL") alert("Table full!");
-        }
-        else if(cmd==="CARDS"){
-            const cards = data.split(",");
-            for(let c of cards.slice(pc.length)){
-                add(pcards,{value:c, hidden:false});
-                await wait(400);
-            }
-            pc = cards;
-            update(pval,pc);
-        }
-        else if(cmd==="DEALER_RESET"){
-            dcards.innerHTML=dval.textContent=pcards.innerHTML=pval.textContent="";
-            dc=pc=[];
-        }
-        else if(cmd==="DEALER_INIT"){
-            const p=data.split(" ");
-            dc = [
-                {value:p[0], hidden:true}, // carta coperta
-                {value:p[1], hidden:false} // carta scoperta
-            ];
-            dcards.innerHTML="";
-            dc.forEach(c=>addCard(dcards,c));
-            const visible = dc.filter(c=>!c.hidden).map(c=>c.value);
-            dval.textContent = "Showing: "+sum(visible);
-        }
-        else if(cmd==="YOUR_TURN"){
-            play = true;
-            btns(true,true,false);
-        }
-        else if(cmd==="DEALER_REVEAL"){
-            dc.forEach(c=>c.hidden=false);
-            dcards.innerHTML="";
-            dc.forEach(c=>addCard(dcards,c));
-            update(dval, dc.map(c=>c.value));
-        }
-        else if(cmd==="DEALER_CARD"){
-            dc.push({value:data, hidden:false});
-            addCard(dcards, {value:data, hidden:false});
-            update(dval, dc.map(c=>c.value));
-        }
-        else if(cmd==="RESULT"){
-            play=false;
-            btns(false,false,false);
-            const parts=d.split(" ");
-            const dealerCardsStr=parts[3];
-            if(dealerCardsStr){
-                const finalDealerCards = dealerCardsStr.split(',');
-                dcards.innerHTML=""; dc=[];
-                finalDealerCards.forEach(c=>{
-                    dc.push({value:c, hidden:false});
-                    addCard(dcards,{value:c, hidden:false});
-                });
-                update(dval, finalDealerCards);
-            }
-        }
-        else if(cmd==="PLAY_AGAIN?"){
-            again.disabled=false;
-            hit.disabled=true;
-            stand.disabled=true;
-            play=false;
-        }
-        else if(cmd==="PLAY_AGAIN_LOCK"){
-            again.disabled=true;
-        }
-    };
-}
-
-function send(m){
-    if(!ws || ws.readyState!==1) return;
-    if(m==="YES" && again.disabled) return;
-    if((m==="HIT"||m==="STAND") && !play) return;
-    ws.send(m);
-    if(m==="HIT"||m==="STAND"){ play=false; btns(false,false,false);}
-}
-
-function leave(){
-    if(ws) ws.close();
-    game.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    dcards.innerHTML=pcards.innerHTML="";
-    dval.textContent=pval.textContent="";
-    dc=pc=[];
-}
-
-function btns(h,s,a){
-    hit.disabled=!h;
-    stand.disabled=!s;
-    again.disabled=!a;
+    el.textContent = "Value: " + s + (s > 21 ? " - BUST!" : s === 21 ? " - BLACKJACK!" : "");
 }
 </script>
 </body>
