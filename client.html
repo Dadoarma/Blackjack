@@ -183,6 +183,7 @@ let ws, play = false, pc = [], dc = [];
 
 function connect(msg) {
     // Connessione dinamica (wss per HTTPS/Render, ws per locale)
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     ws = new WebSocket(`${protocol}//${host}`);
@@ -265,15 +266,27 @@ function connect(msg) {
                 update(dval, dc);
             }
         } else if (cmd === "PLAY_AGAIN?") {
-            play = false;
-            btns(false, false, true);
-        }
+    // È il mio turno di scegliere
+    again.disabled = false;
+    hit.disabled = true;
+    stand.disabled = true;
+    play = false; 
+    } else if (cmd === "PLAY_AGAIN_LOCK") {
+        // Tocca a un altro giocatore
+        again.disabled = true;
+    }
     };
 }
 
 function send(m) {
     if (ws && ws.readyState !== 1) return;
-    if (!play && m !== "YES") return;
+    // YES è permesso solo quando PLAY AGAIN è abilitato
+    if (m === "YES") {
+        again.disabled = true;
+        if (again.disabled) return;
+    } else {
+        if (!play) return;
+    }
     ws.send(m);
     
     if (m === "HIT" || m === "STAND") {

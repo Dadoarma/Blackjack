@@ -194,17 +194,40 @@ async function game(code) {
     }
     await wait(1000);
     
-    // 7. Replay
-    const nextClients = [];
+    // 7. Replay – turni ordinati
+    const survivors = [];
+
     for (let i = 0; i < t.c.length; i++) {
-        if (!t.c[i]) continue;
-        send(t.c[i], "PLAY_AGAIN?");
-        if (await resp(t.c[i]) === "YES") nextClients.push(t.c[i]);
-        else t.c[i].close();
+        const player = t.c[i];
+
+        // Manda il turno solo al giocatore corrente
+        send(player, "PLAY_AGAIN?");
+
+        // Blocca gli altri giocatori
+        t.c.forEach((other, idx) => {
+            if (idx !== i) send(other, "PLAY_AGAIN_LOCK");
+        });
+
+        // Aspetta risposta
+        const r = await resp(player);
+
+        if (r === "YES") survivors.push(player);
+        else player.close();
     }
-    
-    t.c = nextClients;
-    t.h = nextClients.map(() => []);
+
+    // Aggiorna i giocatori restanti
+    t.c = survivors;
+    t.h = survivors.map(() => []);
+
+    if (t.c.length > 0) {
+        console.log(`♻️  [${code}] Next round`);
+        await wait(2000);
+        game(code);
+    } else {
+        console.log(`⏸️  [${code}] Empty, deleting table`);
+        delete tables[code];
+    }
+
     
     if (t.c.length > 0) {
         console.log(`♻️  [${code}] Next round`);
