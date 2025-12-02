@@ -282,7 +282,6 @@ function send(m) {
     if (ws && ws.readyState !== 1) return;
     // YES è permesso solo quando PLAY AGAIN è abilitato
     if (m === "YES") {
-        again.disabled = true;
         if (again.disabled) return;
     } else {
         if (!play) return;
