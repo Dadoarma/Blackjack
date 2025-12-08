@@ -134,8 +134,8 @@ function connect(msg) {
                 dc.push(parts[0]);
             }
             if (parts[1]) {
-                // seconda carta coperta
-                add(dcards, parts[1], true);
+                // seconda carta coperta - salva ma non mostrare il contenuto
+                add(dcards, "?", true);
                 dc.push(parts[1]);
             }
 
@@ -218,7 +218,7 @@ function btns(h, s, a) {
 function add(el, txt, hid) {
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
-    d.textContent = txt;
+    d.textContent = hid ? "" : txt;
     el.appendChild(d);
 }
 
