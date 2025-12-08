@@ -5,423 +5,653 @@
     <meta charset="UTF-8">
     <title>Blackjack</title>
     <style>
-/* Reset e configurazioni base */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* Corpo con gradiente dinamico e animato */
-body {
-    min-height: 100vh;
-    padding: 20px;
-    text-align: center;
-    background: linear-gradient(-45deg, #0f172a, #1e293b, #334155, #475569);
-    background-size: 400% 400%;
-    animation: gradientBG 15s ease infinite;
-    color: #f8fafc;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    overflow-x: hidden;
-}
-
-/* Animazione gradiente di sfondo */
-@keyframes gradientBG {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-
-/* Effetto particelle decorative */
-body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: 
-        radial-gradient(circle at 20% 30%, rgba(120, 119, 198, 0.1) 0px, transparent 2px),
-        radial-gradient(circle at 80% 70%, rgba(255, 215, 0, 0.08) 0px, transparent 2px),
-        radial-gradient(circle at 40% 90%, rgba(56, 189, 248, 0.1) 0px, transparent 2px);
-    background-size: 300px 300px;
-    z-index: -1;
-    animation: floatParticles 20s linear infinite;
-}
-
-@keyframes floatParticles {
-    0% { transform: translateY(0px); }
-    100% { transform: translateY(-150px); }
-}
-
-/* Titolo con effetto neon avanzato */
-h1 {
-    margin: 20px 0 40px;
-    font-size: 3.5rem;
-    font-weight: 900;
-    background: linear-gradient(90deg, #fbbf24, #f59e0b, #fde68a);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-shadow: 
-        0 0 30px rgba(251, 191, 36, 0.3),
-        0 0 60px rgba(251, 191, 36, 0.2),
-        0 0 90px rgba(251, 191, 36, 0.1);
-    animation: shine 3s linear infinite;
-    letter-spacing: -0.5px;
-}
-
-@keyframes shine {
-    to { background-position: 200% center; }
-}
-
-/* Nascondi elementi */
-.hidden { 
-    display: none !important;
-    opacity: 0;
-    transform: scale(0.8);
-}
-
-/* Container principale con glassmorphism avanzato */
-.box {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 28px;
-    padding: 40px;
-    margin: 30px auto;
-    width: 460px;
-    max-width: 90%;
-    box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-}
-
-.box::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    transition: left 0.7s ease;
-}
-
-.box:hover::before {
-    left: 100%;
-}
-
-.box:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 
-        0 30px 60px rgba(0, 0, 0, 0.5),
-        0 0 0 1px rgba(255, 255, 255, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-/* Pulsanti moderni con gradient animato */
-button {
-    padding: 16px 32px;
-    border: none;
-    border-radius: 16px;
-    background: linear-gradient(145deg, #3b82f6, #2563eb, #1d4ed8);
-    background-size: 200% 100%;
-    color: white;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    margin: 10px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    letter-spacing: 0.5px;
-    box-shadow: 
-        0 8px 20px rgba(37, 99, 235, 0.4),
-        0 4px 6px rgba(0, 0, 0, 0.1);
-    min-width: 140px;
-}
-
-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.6s ease;
-}
-
-button:hover::before {
-    left: 100%;
-}
-
-button:hover:not(:disabled) {
-    transform: translateY(-4px) scale(1.05);
-    background-position: 100% 0;
-    box-shadow: 
-        0 12px 25px rgba(37, 99, 235, 0.5),
-        0 6px 10px rgba(0, 0, 0, 0.15);
-}
-
-button:active:not(:disabled) {
-    transform: translateY(-1px) scale(1.02);
-}
-
-button:disabled {
-    background: #475569;
-    cursor: not-allowed;
-    opacity: 0.5;
-    transform: none !important;
-    box-shadow: none;
-}
-
-/* Pulsante LEAVE con effetto speciale */
-.leave {
-    background: linear-gradient(145deg, #ef4444, #dc2626, #b91c1c);
-    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
-    margin-top: 20px;
-}
-
-.leave:hover:not(:disabled) {
-    box-shadow: 0 12px 25px rgba(239, 68, 68, 0.5);
-}
-
-/* Container delle carte */
-.cards {
-    min-height: 120px;
-    margin: 30px 0;
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 20px;
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
-}
-
-/* Carte con design moderno e 3D */
-.card {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 80px;
-    height: 110px;
-    margin: 0;
-    padding: 15px;
-    background: linear-gradient(145deg, #ffffff, #f8fafc);
-    color: #1e293b;
-    border-radius: 14px;
-    font-size: 24px;
-    font-weight: 900;
-    box-shadow: 
-        0 10px 25px rgba(0, 0, 0, 0.3),
-        0 5px 10px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    position: relative;
-    transform-style: preserve-3d;
-    animation: cardDeal 0.5s ease-out;
-}
-
-@keyframes cardDeal {
-    0% {
-        opacity: 0;
-        transform: translateY(30px) rotate(-10deg);
+    /* Reset e configurazioni base */
+*   {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
-    100% {
-        opacity: 1;
-        transform: translateY(0) rotate(0);
+
+    /* Corpo con gradiente dinamico - scorrimento permesso */
+    body {
+        min-height: 100vh;
+        padding: 20px;
+        text-align: center;
+        background: linear-gradient(-45deg, #0f172a, #1e293b, #334155, #475569);
+        background-size: 400% 400%;
+        animation: gradientBG 15s ease infinite;
+        color: #f8fafc;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        overflow-x: hidden;
     }
-}
 
-.card:hover {
-    transform: translateY(-12px) rotateX(5deg) rotateY(5deg);
-    box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 20px rgba(59, 130, 246, 0.3);
-}
-
-/* Carte coperte con effetto misterioso */
-.hidden-card {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
-    color: transparent;
-    position: relative;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.hidden-card::before {
-    content: "?";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 32px;
-    font-weight: bold;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-}
-
-/* Input moderno */
-input {
-    padding: 16px 20px;
-    font-size: 16px;
-    border-radius: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.07);
-    color: white;
-    margin: 15px 0;
-    width: 80%;
-    max-width: 300px;
-    transition: all 0.3s ease;
-    outline: none;
-    backdrop-filter: blur(10px);
-    letter-spacing: 2px;
-    text-align: center;
-}
-
-input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-}
-
-input:focus {
-    border-color: #3b82f6;
-    background: rgba(255, 255, 255, 0.1);
-    box-shadow: 
-        0 0 0 3px rgba(59, 130, 246, 0.2),
-        0 10px 20px rgba(0, 0, 0, 0.2);
-    transform: scale(1.03);
-}
-
-/* Header per dealer e player */
-h3 {
-    margin: 25px 0 15px;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #cbd5e1;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    position: relative;
-    display: inline-block;
-    padding-bottom: 8px;
-}
-
-h3::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60px;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-    border-radius: 2px;
-}
-
-/* Display valori mano */
-#dealerHandValue, #playerHandValue {
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin: 10px 0;
-    padding: 10px 20px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 12px;
-    display: inline-block;
-    min-width: 200px;
-    backdrop-filter: blur(5px);
-    transition: all 0.3s ease;
-}
-
-/* Display codice tavolo */
-#tableCodeDisplay {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #fbbf24;
-    margin-bottom: 30px;
-    padding: 12px 24px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 16px;
-    display: inline-block;
-    letter-spacing: 3px;
-    text-shadow: 0 2px 10px rgba(251, 191, 36, 0.3);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
-}
-
-/* Separatore */
-hr {
-    border: none;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    margin: 30px auto;
-    width: 80%;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-    .box {
-        width: 95%;
-        padding: 30px 20px;
+    /* Animazione gradiente di sfondo */
+    @keyframes gradientBG {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
     }
-    
+
+    /* Effetto particelle decorative */
+    body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            radial-gradient(circle at 20% 30%, rgba(120, 119, 198, 0.1) 0px, transparent 2px),
+            radial-gradient(circle at 80% 70%, rgba(255, 215, 0, 0.08) 0px, transparent 2px),
+            radial-gradient(circle at 40% 90%, rgba(56, 189, 248, 0.1) 0px, transparent 2px);
+        background-size: 300px 300px;
+        z-index: -1;
+        animation: floatParticles 20s linear infinite;
+    }
+
+    @keyframes floatParticles {
+        0% { transform: translateY(0px); }
+        100% { transform: translateY(-150px); }
+    }
+
+    /* Titolo principale */
     h1 {
-        font-size: 2.5rem;
+        margin: 20px 0 40px;
+        font-size: 3.5rem;
+        font-weight: 900;
+        background: linear-gradient(90deg, #fbbf24, #f59e0b, #fde68a);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-shadow: 
+            0 0 30px rgba(251, 191, 36, 0.3),
+            0 0 60px rgba(251, 191, 36, 0.2),
+            0 0 90px rgba(251, 191, 36, 0.1);
+        animation: shine 3s linear infinite;
+        letter-spacing: -0.5px;
     }
-    
+
+    @keyframes shine {
+        to { background-position: 200% center; }
+    }
+
+    /* Nascondi elementi */
+    .hidden { 
+        display: none !important;
+    }
+
+    /* Lobby - Manteniamo lo stile originale */
+    #lobby.box {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 40px;
+        margin: 30px auto;
+        width: 460px;
+        max-width: 90%;
+        box-shadow: 
+            0 20px 40px rgba(0, 0, 0, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    #lobby.box:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 
+            0 30px 60px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    /* Game Box - Adattivo dinamico */
+    #gameBox.box {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 30px;
+        margin: 20px auto;
+        width: 95%;
+        max-width: 800px;
+        min-width: 320px;
+        box-shadow: 
+            0 20px 40px rgba(0, 0, 0, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.05),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: visible;
+    }
+
+    /* Effetto hover per game box */
+    #gameBox.box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        transition: left 0.7s ease;
+    }
+
+    #gameBox.box:hover::before {
+        left: 100%;
+    }
+
+    #gameBox.box:hover {
+        transform: translateY(-5px);
+        box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    /* Layout responsive per il gioco */
+    .game-layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 25px;
+        margin: 0 auto;
+    }
+
+    /* Sezioni giocatore e dealer */
+    .game-section {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 20px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Container delle carte adattivo */
+    .cards {
+        min-height: 100px;
+        margin: 20px 0;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 16px;
+        backdrop-filter: blur(5px);
+    }
+
+    /* Carte responsive */
     .card {
-        width: 70px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 70px;
         height: 100px;
-        font-size: 20px;
+        padding: 15px;
+        background: linear-gradient(145deg, #ffffff, #f8fafc);
+        color: #1e293b;
+        border-radius: 12px;
+        font-size: 22px;
+        font-weight: 900;
+        box-shadow: 
+            0 8px 20px rgba(0, 0, 0, 0.3),
+            0 4px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        transform-style: preserve-3d;
+        animation: cardDeal 0.5s ease-out;
     }
-    
+
+    @keyframes cardDeal {
+        0% {
+            opacity: 0;
+            transform: translateY(30px) rotate(-10deg);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) rotate(0);
+        }
+    }
+
+    .card:hover {
+        transform: translateY(-8px) rotateX(5deg) rotateY(5deg);
+        box-shadow: 
+            0 15px 30px rgba(0, 0, 0, 0.4),
+            0 0 15px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Carte coperte */
+    .hidden-card {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+        color: transparent;
+        position: relative;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .hidden-card::before {
+        content: "?";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 28px;
+        font-weight: bold;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Pulsanti moderni */
     button {
-        min-width: 120px;
-        padding: 14px 24px;
+        padding: 14px 28px;
+        border: none;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #3b82f6, #2563eb, #1d4ed8);
+        background-size: 200% 100%;
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 8px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        letter-spacing: 0.5px;
+        box-shadow: 
+            0 6px 15px rgba(37, 99, 235, 0.4),
+            0 4px 6px rgba(0, 0, 0, 0.1);
+        min-width: 130px;
     }
-}
 
-/* Animazione per risultato */
-@keyframes winPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
+    button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.6s ease;
+    }
 
-/* Stato BUST */
-.bust {
-    color: #ef4444 !important;
-    animation: shake 0.5s ease;
-}
+    button:hover::before {
+        left: 100%;
+    }
 
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
+    button:hover:not(:disabled) {
+        transform: translateY(-3px) scale(1.05);
+        background-position: 100% 0;
+        box-shadow: 
+            0 10px 20px rgba(37, 99, 235, 0.5),
+            0 6px 10px rgba(0, 0, 0, 0.15);
+    }
 
-/* Stato BLACKJACK */
-.blackjack {
-    color: #fbbf24 !important;
-    animation: sparkle 1s ease;
-}
+    button:active:not(:disabled) {
+        transform: translateY(-1px) scale(1.02);
+    }
 
-@keyframes sparkle {
-    0% { filter: brightness(1); }
-    50% { filter: brightness(1.5); }
-    100% { filter: brightness(1); }
-}
+    button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+        opacity: 0.5;
+        transform: none !important;
+        box-shadow: none;
+    }
+
+    /* Pulsante LEAVE */
+    .leave {
+        background: linear-gradient(145deg, #ef4444, #dc2626, #b91c1c);
+        box-shadow: 0 6px 15px rgba(239, 68, 68, 0.4);
+        margin-top: 20px;
+    }
+
+    .leave:hover:not(:disabled) {
+        box-shadow: 0 10px 20px rgba(239, 68, 68, 0.5);
+    }
+
+    /* Input */
+    input {
+        padding: 14px 18px;
+        font-size: 16px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.07);
+        color: white;
+        margin: 15px 0;
+        width: 70%;
+        max-width: 300px;
+        transition: all 0.3s ease;
+        outline: none;
+        backdrop-filter: blur(10px);
+        letter-spacing: 2px;
+        text-align: center;
+    }
+
+    input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    input:focus {
+        border-color: #3b82f6;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 
+            0 0 0 3px rgba(59, 130, 246, 0.2),
+            0 8px 16px rgba(0, 0, 0, 0.2);
+        transform: scale(1.03);
+    }
+
+    /* Header per dealer e player */
+    h3 {
+        margin: 15px 0 10px;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #cbd5e1;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        position: relative;
+        display: inline-block;
+        padding-bottom: 6px;
+    }
+
+    h3::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+        border-radius: 2px;
+    }
+
+    /* Display valori mano */
+    #dealerHandValue, #playerHandValue {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin: 10px 0;
+        padding: 10px 20px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        display: inline-block;
+        min-width: 200px;
+        backdrop-filter: blur(5px);
+        transition: all 0.3s ease;
+    }
+
+    /* Display codice tavolo */
+    #tableCodeDisplay {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #fbbf24;
+        margin-bottom: 25px;
+        padding: 12px 24px;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 16px;
+        display: inline-block;
+        letter-spacing: 3px;
+        text-shadow: 0 2px 10px rgba(251, 191, 36, 0.3);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+    }
+
+    /* Separatore */
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        margin: 25px auto;
+        width: 80%;
+    }
+
+    /* Container pulsanti azioni */
+    .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 16px;
+        backdrop-filter: blur(5px);
+    }
+
+    /* Animazione per risultato */
+    @keyframes winPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+
+    /* Stato BUST */
+    .bust {
+        color: #ef4444 !important;
+        animation: shake 0.5s ease;
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    /* Stato BLACKJACK */
+    .blackjack {
+        color: #fbbf24 !important;
+        animation: sparkle 1s ease;
+    }
+
+    @keyframes sparkle {
+        0% { filter: brightness(1); }
+        50% { filter: brightness(1.5); }
+        100% { filter: brightness(1); }
+    }
+
+    /* Media Queries per adattamento responsive */
+    @media (max-width: 768px) {
+        h1 {
+            font-size: 2.5rem;
+            margin: 15px 0 30px;
+        }
+        
+        #gameBox.box {
+            padding: 20px 15px;
+            margin: 15px auto;
+            width: 98%;
+        }
+        
+        .card {
+            min-width: 60px;
+            height: 85px;
+            font-size: 20px;
+            padding: 12px;
+        }
+        
+        .cards {
+            gap: 8px;
+            padding: 12px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            font-size: 15px;
+            min-width: 110px;
+            margin: 5px;
+        }
+        
+        h3 {
+            font-size: 1.2rem;
+        }
+        
+        #dealerHandValue, #playerHandValue {
+            font-size: 1.1rem;
+            min-width: 180px;
+            padding: 8px 16px;
+        }
+        
+        #tableCodeDisplay {
+            font-size: 1.2rem;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+        }
+        
+        .game-section {
+            padding: 15px;
+        }
+    }
+
+    /* Schermi piccoli */
+    @media (max-width: 480px) {
+        h1 {
+            font-size: 2rem;
+            margin: 10px 0 20px;
+        }
+        
+        #lobby.box {
+            padding: 30px 20px;
+            width: 95%;
+        }
+        
+        #gameBox.box {
+            padding: 15px 10px;
+        }
+        
+        .card {
+            min-width: 50px;
+            height: 70px;
+            font-size: 18px;
+            padding: 10px;
+        }
+        
+        .cards {
+            min-height: 80px;
+            gap: 6px;
+            padding: 10px;
+        }
+        
+        button {
+            padding: 10px 16px;
+            font-size: 14px;
+            min-width: 90px;
+            margin: 4px;
+        }
+        
+        .action-buttons {
+            padding: 10px;
+            gap: 6px;
+        }
+        
+        input {
+            width: 85%;
+            padding: 12px 16px;
+            font-size: 14px;
+        }
+        
+        #dealerHandValue, #playerHandValue {
+            font-size: 1rem;
+            min-width: 150px;
+            padding: 6px 12px;
+        }
+        
+        #tableCodeDisplay {
+            font-size: 1rem;
+            padding: 8px 16px;
+        }
+    }
+
+    /* Schermi grandi */
+    @media (min-width: 1200px) {
+        #gameBox.box {
+            max-width: 900px;
+            padding: 40px;
+        }
+        
+        .card {
+            min-width: 80px;
+            height: 110px;
+            font-size: 24px;
+        }
+        
+        .cards {
+            gap: 15px;
+            padding: 20px;
+        }
+        
+        .game-layout {
+            gap: 35px;
+        }
+    }
+
+    /* Schermi molto piccoli in altezza */
+    @media (max-height: 600px) and (orientation: landscape) {
+        h1 {
+            font-size: 2rem;
+            margin: 10px 0 20px;
+        }
+        
+        #gameBox.box {
+            padding: 15px;
+            margin: 10px auto;
+        }
+        
+        .card {
+            min-width: 45px;
+            height: 65px;
+            font-size: 16px;
+            padding: 8px;
+        }
+        
+        .cards {
+            min-height: 70px;
+            padding: 8px;
+            margin: 10px 0;
+        }
+        
+        h3 {
+            font-size: 1.1rem;
+            margin: 8px 0 5px;
+        }
+        
+        #dealerHandValue, #playerHandValue {
+            font-size: 0.9rem;
+            min-width: 140px;
+            padding: 5px 10px;
+            margin: 5px 0;
+        }
+        
+        .game-section {
+            padding: 10px;
+        }
+    }
+
+    /* Transizioni smooth per cambio layout */
+    .box {
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Evitare layout shift durante il caricamento */
+    #gameBox.box:not(.hidden) {
+        animation: fadeInScale 0.5s ease-out;
+    }
+
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.95) translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
     </style>
 </head>
 
@@ -471,7 +701,7 @@ hr {
         const standButton = $("standButton");
         const playAgainButton = $("playAgainButton");
 
-        // Stato del gioco
+        // Variabili di stato
         let websocket;
         let playerCards = [];
         let dealerCards = [];
@@ -486,6 +716,7 @@ hr {
 
             // Gestione dei messaggi ricevuti dal server
             websocket.onmessage = async event => {
+                // Suddivide il messaggio in comando e dati
                 const [command, data] = event.data.split(" ", 2);
 
                 if (command === "TABLE_CREATED" || command === "TABLE_JOINED") {
@@ -501,7 +732,7 @@ hr {
                 } else if (command === "TABLE_FULL") {
                     alert("Table full");
 
-                } else if (command === "DEALER_RESET") {
+                } else if (command === "DEALER_RESET") { 
                     // Reset carte e valori
                     dealerCards = playerCards = [];
                     dealerCardsContainer.innerHTML = playerCardsContainer.innerHTML = "";
@@ -583,6 +814,7 @@ hr {
 
         // Torna alla lobby
         function leaveTable() {
+            // Chiude la connessione WebSocket e mostra la lobby
             if (websocket) websocket.close();
             gameBox.classList.add("hidden");
             lobbyBox.classList.remove("hidden");
