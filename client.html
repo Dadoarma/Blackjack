@@ -35,7 +35,7 @@
         .leave { background: var(--danger-color); box-shadow: 0 4px 0 #9f2424; }
         .leave:hover:not(:disabled) { background: #9f2424; box-shadow: 0 2px 0 #9f2424; }
         .card { display: inline-block; margin: 6px; padding: 15px 18px; background: var(--card-color); color: black; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: var(--shadow-light); min-width: 30px; transition: transform 0.4s ease-out; border: 1px solid #aaa; }
-        .card.hidden { background: var(--card-back-color); color: var(--card-back-color); border: 1px solid var(--card-back-color); position: relative; }
+        .card.hidden { background: var(--card-back-color); color: transparent; border: 1px solid var(--card-back-color); position: relative; }
         .card.hidden::before { content: '♠'; color: white; font-size: 1.5em; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         .cards { margin: 20px 0; min-height: 80px; }
         .value { font-size: 1.2em; color: var(--secondary-color); margin: 10px 0; font-weight: bold; }
@@ -134,7 +134,7 @@ function connect(msg) {
             if (parts[0]) {
                 // Prima carta: COPERTA - mostriamo solo il retro
                 dc.push(parts[0]); // salviamo per dopo
-                add(dcards, "", true); // carta blu senza testo
+                add(dcards, "HIDDEN", true); // carta blu con placeholder
             }
             if (parts[1]) {
                 // Seconda carta: VISIBILE
@@ -222,7 +222,9 @@ function btns(h, s, a) {
 function add(el, txt, hid) {
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
+    // Per carte coperte non mostrare il testo, solo il simbolo dal CSS
     d.textContent = hid ? "" : txt;
+    // Per le carte coperte, il ::before del CSS mostrerà il simbolo ♠
     el.appendChild(d);
 }
 
