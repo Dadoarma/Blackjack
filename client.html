@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8" />
     <title>Blackjack</title>
     <style>
         :root {
@@ -35,7 +36,7 @@
         .leave { background: var(--danger-color); box-shadow: 0 4px 0 #9f2424; }
         .leave:hover:not(:disabled) { background: #9f2424; box-shadow: 0 2px 0 #9f2424; }
         .card { display: inline-block; margin: 6px; padding: 15px 18px; background: var(--card-color); color: black; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: var(--shadow-light); min-width: 30px; transition: transform 0.4s ease-out; border: 1px solid #aaa; }
-        .card.hidden { background: var(--card-back-color); color: transparent; border: 1px solid var(--card-back-color); position: relative; }
+        .card.hidden { background: var(--card-back-color); color: var(--card-back-color); border: 1px solid var(--card-back-color); position: relative; }
         .card.hidden::before { content: '♠'; color: white; font-size: 1.5em; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
         .cards { margin: 20px 0; min-height: 80px; }
         .value { font-size: 1.2em; color: var(--secondary-color); margin: 10px 0; font-weight: bold; }
@@ -73,6 +74,15 @@
 </div>
 
 <script>
+/*
+  Client-side improvements and bug fixes:
+  - Revealing the dealer's hidden card is now robust: the client stores the hidden card in dataset
+    and removes the 'hidden' class BEFORE setting the visible text, so the card is actually visible.
+  - DEALER_REVEAL and RESULT both trigger reveal logic (RESULT can carry final dealer cards).
+  - Added websocket onclose/onerror handling to restore lobby.
+  - Minor robustness: handle missing payloads gracefully.
+*/
+
 const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl, waiting] = 
 ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status', 'waiting'].map(id => document.getElementById(id));
 
@@ -83,17 +93,25 @@ function connect(msg) {
     const host = window.location.host;
     ws = new WebSocket(`${protocol}//${host}`);
 
-    ws.onopen = () => ws.send(msg);
+    ws.onopen = () => {
+        console.log("WS open, sending:", msg);
+        ws.send(msg);
+    };
 
     ws.onmessage = async e => {
         const raw = e.data;
-        const [cmd, payload] = raw.split(' ', 2);
+        // split into command and payload (payload may be undefined)
+        const partsSplit = raw.split(' ');
+        const cmd = partsSplit[0] || raw;
+        const payload = raw.includes(' ') ? raw.slice(cmd.length + 1) : "";
+
+        console.log("WS recv:", {cmd, payload});
 
         if (cmd.startsWith("TABLE_")) {
             if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
                 lobby.classList.add("hidden");
                 game.classList.remove("hidden");
-                document.getElementById("table-code").textContent = "Code: " + payload;
+                document.getElementById("table-code").textContent = "Code: " + (payload || "");
             } else if (cmd === "TABLE_NOT_FOUND") alert("Table not found!");
             else if (cmd === "TABLE_FULL") alert("Table full!");
         } 
@@ -109,7 +127,9 @@ function connect(msg) {
             play = false;
         }
         else if (cmd === "CARDS") {
-            const cards = payload ? payload.split(",") : [];
+            // payload: comma-separated player cards (e.g. "J♠,7♦")
+            const cards = payload ? payload.split(",").map(s => s.trim()).filter(Boolean) : [];
+            // add newly received cards (animation)
             for (let c of cards.slice(pc.length)) {
                 add(pcards, c);
                 await wait(400);
@@ -122,34 +142,29 @@ function connect(msg) {
             pcards.innerHTML = pval.textContent = "";
             statusEl.textContent = "";
             dc = pc = [];
+            btns(false, false, false);
+            waiting.classList.add("hidden");
         }
         else if (cmd === "DEALER_INIT") {
-            const parts = payload ? payload.split(" ") : [];
-            console.log("DEALER_INIT received:", parts);
+            // payload expected: two tokens separated by space: "C1 C2"
+            // C2 should be the actual card value (e.g. "9♦" or "J♣") but shown as hidden on client.
+            const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
             dcards.innerHTML = "";
             dc = [];
 
-            // parts[0] = carta COPERTA (non la mostriamo)
-            // parts[1] = carta VISIBILE (la mostriamo)
-            
             if (parts[0]) {
-                console.log("Adding hidden card:", parts[0]);
-                // Prima carta: COPERTA - mostriamo solo il retro
-                dc.push(parts[0]); // salviamo per dopo
-                add(dcards, "X", true); // carta blu con X come placeholder
+                // prima carta visibile
+                add(dcards, parts[0]);
+                dc.push(parts[0]);
             }
             if (parts[1]) {
-                console.log("Adding visible card:", parts[1]);
-                // Seconda carta: VISIBILE
+                // seconda carta coperta: store value in dataset so we can reveal later
+                add(dcards, parts[1], true);
                 dc.push(parts[1]);
-                add(dcards, parts[1], false); // carta bianca con valore
             }
 
-            console.log("DC array:", dc);
-            console.log("Cards in DOM:", dcards.children.length);
-
-            // Mostra solo il valore della carta visibile (la seconda)
-            const visibleValue = parts[1] ? val(parts[1]) : 0;
+            // mostra valore solo della prima carta
+            const visibleValue = parts[0] ? val(parts[0]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         }
         else if (cmd === "YOUR_TURN") {
@@ -158,18 +173,32 @@ function connect(msg) {
             btns(true, true, false);
         }
         else if (cmd === "DEALER_REVEAL") {
-            // Rivela la prima carta (quella coperta in posizione 0)
-            if (dcards.children[0]) {
-                dcards.children[0].textContent = dc[0] || "?";
-                dcards.children[0].classList.remove("hidden");
+            // payload optional: comma-separated dealer cards to set explicitly
+            // if payload is empty, just reveal the existing hidden card(s)
+            if (payload) {
+                // set explicit dealer cards (e.g. "J♠,9♦,5♣")
+                const final = payload.split(",").map(s => s.trim()).filter(Boolean);
+                // clear and render final dealer cards
+                dcards.innerHTML = "";
+                dc = [];
+                for (const card of final) {
+                    add(dcards, card);
+                    dc.push(card);
+                }
+                update(dval, dc);
+            } else {
+                // reveal existing hidden card(s) stored in dataset or dc array
+                revealHiddenDealerCard();
+                update(dval, dc);
             }
-            update(dval, dc);
             await wait(500);
         }
         else if (cmd === "DEALER_CARD") {
+            // payload: single card (e.g. "5♣")
             if (payload) {
-                dc.push(payload);
-                add(dcards, payload);
+                const card = payload.trim();
+                dc.push(card);
+                add(dcards, card);
                 await wait(400);
                 update(dval, dc);
             }
@@ -177,25 +206,61 @@ function connect(msg) {
         else if (cmd === "RESULT") {
             play = false;
             btns(false, false, false);
-            const parts = payload ? payload.split(" ") : [];
+            const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
             const result = parts[0] || "";
+            // find if the token "DEALER" appears; everything after are dealer cards joined by spaces or commas
             const dealerIndex = parts.indexOf("DEALER");
             let dealerCardsStr = "";
-            if (dealerIndex !== -1) dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
+            if (dealerIndex !== -1) {
+                // take remainder of the payload starting from token after DEALER
+                dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
+            }
+
             statusEl.textContent = result ? ("Result: " + result) : "";
+
             if (dealerCardsStr) {
-                const finalDealerCards = dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean);
+                // normalize: split by comma if present, otherwise by whitespace
+                let finalDealerCards = dealerCardsStr.includes(",")
+                    ? dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean)
+                    : dealerCardsStr.split(" ").map(s => s.trim()).filter(Boolean);
                 dcards.innerHTML = "";
                 dc = [];
-                for (const card of finalDealerCards) { dc.push(card); add(dcards, card); }
+                for (const card of finalDealerCards) {
+                    dc.push(card);
+                    add(dcards, card);
+                }
+                update(dval, dc);
+            } else {
+                // if server didn't send final cards, at least reveal hidden if present
+                revealHiddenDealerCard();
                 update(dval, dc);
             }
         }
     };
+
+    ws.onerror = (err) => {
+        console.error("WebSocket error", err);
+        alert("WebSocket error, controlla il server.");
+    };
+
+    ws.onclose = () => {
+        console.log("WebSocket closed");
+        // Reset UI to lobby
+        game.classList.add("hidden");
+        lobby.classList.remove("hidden");
+        dcards.innerHTML = pcards.innerHTML = "";
+        dval.textContent = pval.textContent = "";
+        statusEl.textContent = "";
+        waiting.classList.add("hidden");
+        dc = pc = [];
+    };
 }
 
 function send(m) {
-    if (ws && ws.readyState !== 1) return;
+    if (!ws || ws.readyState !== 1) {
+        alert("Connessione non disponibile.");
+        return;
+    }
     if (m === "YES" && again.disabled) return;
     if (m === "HIT" && hit.disabled) return;
     if (m === "STAND" && stand.disabled) return;
@@ -226,26 +291,47 @@ function btns(h, s, a) {
 }
 
 function add(el, txt, hid) {
-    console.log("add() called - txt:", txt, "hidden:", hid);
+    // create a card element; if hid==true, store the real card value in data-card and add class 'hidden'
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
-    // Per carte coperte lasciamo vuoto, il CSS mostrerà ♠
-    // Per carte visibili mostriamo il valore
-    d.textContent = hid ? "" : txt;
+    // store card value explicitly so we can reveal it regardless of any client array state
+    d.dataset.card = txt;
+    // If hidden, the CSS will hide the text color. Still set the text for accessibility and for reveal.
+    d.textContent = txt;
     el.appendChild(d);
-    console.log("Card added. Total cards:", el.children.length);
+}
+
+function revealHiddenDealerCard() {
+    // Find any card elements with class 'hidden' in dealer area and reveal them using their dataset.card.
+    for (let i = 0; i < dcards.children.length; i++) {
+        const child = dcards.children[i];
+        if (child.classList.contains("hidden")) {
+            // remove hidden class BEFORE setting text (so color becomes visible)
+            child.classList.remove("hidden");
+            // Use stored dataset.card if available; fallback to existing text or dc array
+            const real = child.dataset.card || (dc[i] || child.textContent);
+            child.textContent = real;
+            // ensure dc array has the correct value in same position
+            if (!dc[i]) dc[i] = real;
+        }
+    }
 }
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function val(c) {
+    if (!c) return 0;
     const v = c.slice(0, -1);
-    return v === "A" ? 11 : ["J","Q","K"].includes(v) ? 10 : +v;
+    if (v === "A") return 11;
+    if (["J","Q","K"].includes(v)) return 10;
+    const n = +v;
+    return Number.isNaN(n) ? 0 : n;
 }
 
 function sum(cards) {
     let s = 0, a = 0;
     for (let c of cards) {
+        if (!c) continue;
         const v = c.slice(0, -1);
         if (v === "A") { s += 11; a++; }
         else s += ["J","Q","K"].includes(v) ? 10 : +v;

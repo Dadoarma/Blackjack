@@ -134,9 +134,8 @@ async function game(code) {
     all(t, "DEALER_RESET");
     await wait(300);
 
-    // 2. Distribuzione iniziale dealer: prima carta coperta, seconda visibile
+    // 2. Distribuzione iniziale dealer
     const dealer = [draw(t), draw(t)];
-    // Inviamo: carta_coperta carta_visibile
     all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
     await wait(800);
 
