@@ -128,18 +128,21 @@ function connect(msg) {
             dcards.innerHTML = "";
             dc = [];
 
+            // parts[0] = carta visibile
+            // parts[1] = carta coperta
+            
             if (parts[0]) {
                 // prima carta visibile
                 add(dcards, parts[0]);
                 dc.push(parts[0]);
             }
             if (parts[1]) {
-                // seconda carta coperta - salva ma non mostrare il contenuto
+                // seconda carta coperta
                 add(dcards, "?", true);
                 dc.push(parts[1]);
             }
 
-            // mostra valore solo della prima carta
+            // mostra valore solo della prima carta (visibile)
             const visibleValue = parts[0] ? val(parts[0]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         }

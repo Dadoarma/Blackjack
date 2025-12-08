@@ -135,8 +135,9 @@ async function game(code) {
     await wait(300);
 
     // 2. Distribuzione iniziale dealer
+    // Prima carta: coperta (hidden), Seconda carta: visibile
     const dealer = [draw(t), draw(t)];
-    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
+    all(t, `DEALER_INIT ${fmt(dealer[1])} ${fmt(dealer[0])}`);
     await wait(800);
 
     // 3. Distribuzione iniziale giocatori (solo chi ha mano vuota non è in attesa)
