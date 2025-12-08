@@ -160,6 +160,9 @@
     <h3>Player</h3>
     <div id="pval" class="value"></div>
     <div id="pcards" class="cards"></div>
+
+    <!-- status: qui mostriamo WIN / LOSE / PUSH ecc -->
+    <div id="status" class="value"></div>
     
     <div class="actions">
         <button id="hit" onclick="send('HIT')" disabled>HIT</button>
@@ -170,8 +173,8 @@
 </div>
 
 <script>
-const [lobby, game, pcards, dcards, pval, dval, hit, stand, again] = 
-    ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again'].map(id => document.getElementById(id));
+const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl] =
+    ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status'].map(id => document.getElementById(id));
 
 let ws, play = false, pc = [], dc = [];
 
@@ -182,21 +185,25 @@ function connect(msg) {
     
     ws.onopen = () => ws.send(msg);
     ws.onmessage = async e => {
-        const d = e.data;
-        const [cmd, data] = d.split(' ', 2);
+        const raw = e.data;
+        // separo il comando dal payload (primo spazio)
+        const [cmd, payload] = raw.split(' ', 2);
 
+        // Uso payload (stringa dopo il primo spazio) ovunque serva
         if (cmd.startsWith("TABLE_")) {
             if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
                 lobby.classList.add("hidden");
                 game.classList.remove("hidden");
-                document.getElementById("table-code").textContent = "Code: " + data;
+                document.getElementById("table-code").textContent = "Code: " + payload;
             } else if (cmd === "TABLE_NOT_FOUND") {
                 alert("Table not found!");
             } else if (cmd === "TABLE_FULL") {
                 alert("Table full!");
             }
         } else if (cmd === "CARDS") {
-            const cards = data.split(",");
+            // payload = "A♥,10♠,..."
+            const cards = payload ? payload.split(",") : [];
+            // aggiungo solo le nuove rispetto a pc attuale
             for (let c of cards.slice(pc.length)) {
                 add(pcards, c);
                 await wait(400);
@@ -206,43 +213,67 @@ function connect(msg) {
         } else if (cmd === "DEALER_RESET") {
             dcards.innerHTML = dval.textContent = "";
             pcards.innerHTML = pval.textContent = "";
+            statusEl.textContent = "";
             dc = pc = [];
         } else if (cmd === "DEALER_INIT") {
-            const p = data.split(" ");
+            // payload esempio: "A♥ 10♠"
+            const parts = payload ? payload.split(" ") : [];
+            // parts[0] = dealer hidden card, parts[1] = dealer visible card
             dcards.innerHTML = "";
-            dc = p;
-            
-            add(dcards, "🂠", true); 
+            dc = parts.slice(); // memorizzo entrambe le carte
+            // prima carta coperta
+            add(dcards, "🂠", true);
             await wait(400);
-            
-            add(dcards, p[1]);
-            
-            const visibleValue = val(p[1]);
+            // seconda carta visibile
+            if (parts[1]) add(dcards, parts[1]);
+            // mostro valore visibile del dealer (solo della carta mostrata)
+            const visibleValue = parts[1] ? val(parts[1]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         } else if (cmd === "YOUR_TURN") {
             play = true;
             btns(true, true, false);
         } else if (cmd === "DEALER_REVEAL") {
-            dcards.children[0].textContent = dc[0];
-            dcards.children[0].classList.remove("hidden");
+            // reveal: sveliamo la prima carta coperta
+            if (dcards.children[0]) {
+                dcards.children[0].textContent = dc[0] || "?";
+                dcards.children[0].classList.remove("hidden");
+            }
+            // aggiorno valore con tutte le carte del dealer (se dc è popolato)
             update(dval, dc);
             await wait(500);
         } else if (cmd === "DEALER_CARD") {
-            dc.push(data);
-            add(dcards, data);
-            await wait(400);
-            update(dval, dc);
+            // payload è la carta pescata es. "9♣"
+            if (payload) {
+                dc.push(payload);
+                add(dcards, payload);
+                await wait(400);
+                update(dval, dc);
+            }
         } else if (cmd === "RESULT") {
             play = false;
             btns(false, false, false);
-            
-            const parts = d.split(" ");
-            const dealerCardsStr = parts[3]; 
 
+            // raw = "RESULT WIN DEALER A♥,10♠,9♣"
+            // payload = "WIN DEALER A♥,10♠,9♣"
+            const parts = payload ? payload.split(" ") : [];
+            const result = parts[0] || "";
+            // dealer cards string sta dopo la parola "DEALER"
+            const dealerIndex = parts.indexOf("DEALER");
+            let dealerCardsStr = "";
+            if (dealerIndex !== -1) {
+                // ricostruisco il resto dopo "DEALER"
+                dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
+            }
+
+            // Mostra risultato testuale all'utente
+            statusEl.textContent = result ? ("Result: " + result) : "";
+
+            // Se il server ha inviato le carte finali del dealer, ricostruiscile
             if (dealerCardsStr) {
-                const finalDealerCards = dealerCardsStr.split(',');
+                // split sulle virgole (potrebbe esserci uno spazio residuo)
+                const finalDealerCards = dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean);
                 
-                dcards.innerHTML = ""; 
+                dcards.innerHTML = "";
                 dc = [];
                 
                 for (const card of finalDealerCards) {
@@ -288,6 +319,7 @@ function leave() {
     lobby.classList.remove("hidden");
     dcards.innerHTML = pcards.innerHTML = "";
     dval.textContent = pval.textContent = "";
+    statusEl.textContent = "";
     dc = pc = [];
 }
 

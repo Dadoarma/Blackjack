@@ -1,373 +1,365 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require("ws");
-const path = require('path');
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blackjack</title>
+    <style>
+        :root {
+            --bg-color: #2e7d32;
+            --card-color: white;
+            --card-back-color: #1565c0;
+            --primary-color: #4caf50;
+            --secondary-color: #ffeb3b;
+            --danger-color: #d32f2f;
+            --shadow-light: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: var(--bg-color); 
+            color: var(--card-color); 
+            text-align: center; 
+            padding: 20px; 
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: var(--secondary-color);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
 
-// Setup Express e HTTP server
-const app = express();
-const server = http.createServer(app);
+        .hidden { display: none; }
+        .lobby-box, #game { 
+            background: #1b5e20;
+            padding: 30px; 
+            border-radius: 12px; 
+            max-width: 90%;
+            width: 450px; 
+            margin: 20px auto; 
+            box-shadow: var(--shadow-light);
+        }
+        
+        .lobby-box input { 
+            padding: 10px; 
+            font-size: 16px; 
+            margin: 10px 0; 
+            width: 80%; 
+            border-radius: 6px; 
+            border: 1px solid #ccc; 
+            box-sizing: border-box;
+            text-transform: uppercase;
+        }
+        
+        #table-code { 
+            background: var(--primary-color); 
+            padding: 10px; 
+            border-radius: 6px; 
+            margin: 15px 0; 
+            font-size: 1.1em; 
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
 
-// Serve client.html e assets dalla radice
-app.use(express.static(__dirname));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client.html'));
-});
+        button { 
+            margin: 8px; 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            border: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            background: var(--primary-color); 
+            color: white; 
+            transition: background 0.3s, opacity 0.3s;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #388e3c; 
+        }
+        button:hover:not(:disabled) { 
+            background: #388e3c; 
+            box-shadow: 0 2px 0 #388e3c;
+            transform: translateY(2px);
+        }
+        button:disabled { 
+            background: #666; 
+            cursor: not-allowed; 
+            box-shadow: none;
+            opacity: 0.7;
+            transform: translateY(0);
+        }
+        .leave { 
+            background: var(--danger-color); 
+            box-shadow: 0 4px 0 #9f2424;
+        }
+        .leave:hover:not(:disabled) { 
+            background: #9f2424; 
+            box-shadow: 0 2px 0 #9f2424;
+        }
+        
+        .card { 
+            display: inline-block; 
+            margin: 6px; 
+            padding: 15px 18px; 
+            background: var(--card-color); 
+            color: black; 
+            border-radius: 8px; 
+            font-size: 24px; 
+            font-weight: bold;
+            box-shadow: var(--shadow-light); 
+            min-width: 30px; 
+            transition: transform 0.4s ease-out;
+            border: 1px solid #aaa;
+        }
+        .card.hidden { 
+            background: var(--card-back-color); 
+            color: var(--card-back-color); 
+            border: 1px solid var(--card-back-color);
+            position: relative;
+        }
+        .card.hidden::before {
+             content: '♠'; 
+             color: white;
+             font-size: 1.5em;
+             position: absolute;
+             top: 50%;
+             left: 50%;
+             transform: translate(-50%, -50%);
+        }
+        .cards { 
+            margin: 20px 0; 
+            min-height: 80px; 
+        }
+        .value { 
+            font-size: 1.2em; 
+            color: var(--secondary-color); 
+            margin: 10px 0; 
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<h1>🎰 Blackjack Live</h1>
 
-const wss = new WebSocket.Server({ server });
+<div id="lobby">
+    <div class="lobby-box">
+        <h2>Welcome!</h2>
+        <button onclick="connect('CREATE')">Create Table</button>
+        <hr>
+        <input id="code" placeholder="Enter 6-char code" maxlength="6">
+        <button onclick="connect('JOIN ' + document.getElementById('code').value.toUpperCase())">Join Table</button>
+    </div>
+</div>
 
-const tables = {};
-const MAX_PLAYERS = 5;
-const CARDS = Array.from({length: 13}, (_, i) =>
-    i === 0 ? 'A' : i < 9 ? String(i + 1) : ['10', 'J', 'Q', 'K'][i - 9]);
-const SUITS = ["♥", "♦", "♣", "♠"];
-const PORT = process.env.PORT || 8080;
+<div id="game" class="hidden">
+    <div id="table-code"></div>
+    <h3>Dealer</h3>
+    <div id="dval" class="value"></div>
+    <div id="dcards" class="cards"></div>
+    <h3>Player</h3>
+    <div id="pval" class="value"></div>
+    <div id="pcards" class="cards"></div>
 
-console.log(`🎰 Server starting on port ${PORT}...`);
+    <!-- status: qui mostriamo WIN / LOSE / PUSH ecc -->
+    <div id="status" class="value"></div>
+    
+    <div class="actions">
+        <button id="hit" onclick="send('HIT')" disabled>HIT</button>
+        <button id="stand" onclick="send('STAND')" disabled>STAND</button>
+        <button id="again" onclick="send('YES')" disabled>PLAY AGAIN</button>
+    </div>
+    <button class="leave" onclick="leave()">LEAVE</button>
+</div>
 
-// --- UTILITY E LOGICA DI GIOCO ---
+<script>
+const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl] =
+    ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status'].map(id => document.getElementById(id));
 
-function genCode() {
-    let c;
-    do c = Math.random().toString(36).substr(2, 6).toUpperCase();
-    while (tables[c]);
-    return c;
+let ws, play = false, pc = [], dc = [];
+
+function connect(msg) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    ws = new WebSocket(`${protocol}//${host}`);
+    
+    ws.onopen = () => ws.send(msg);
+    ws.onmessage = async e => {
+        const raw = e.data;
+        // separo il comando dal payload (primo spazio)
+        const [cmd, payload] = raw.split(' ', 2);
+
+        // Uso payload (stringa dopo il primo spazio) ovunque serva
+        if (cmd.startsWith("TABLE_")) {
+            if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
+                lobby.classList.add("hidden");
+                game.classList.remove("hidden");
+                document.getElementById("table-code").textContent = "Code: " + payload;
+            } else if (cmd === "TABLE_NOT_FOUND") {
+                alert("Table not found!");
+            } else if (cmd === "TABLE_FULL") {
+                alert("Table full!");
+            }
+        } else if (cmd === "CARDS") {
+            // payload = "A♥,10♠,..."
+            const cards = payload ? payload.split(",") : [];
+            // aggiungo solo le nuove rispetto a pc attuale
+            for (let c of cards.slice(pc.length)) {
+                add(pcards, c);
+                await wait(400);
+            }
+            pc = cards;
+            update(pval, pc);
+        } else if (cmd === "DEALER_RESET") {
+            dcards.innerHTML = dval.textContent = "";
+            pcards.innerHTML = pval.textContent = "";
+            statusEl.textContent = "";
+            dc = pc = [];
+        } else if (cmd === "DEALER_INIT") {
+            // payload esempio: "A♥ 10♠"
+            const parts = payload ? payload.split(" ") : [];
+            // parts[0] = dealer hidden card, parts[1] = dealer visible card
+            dcards.innerHTML = "";
+            dc = parts.slice(); // memorizzo entrambe le carte
+            // prima carta coperta
+            add(dcards, "🂠", true);
+            await wait(400);
+            // seconda carta visibile
+            if (parts[1]) add(dcards, parts[1]);
+            // mostro valore visibile del dealer (solo della carta mostrata)
+            const visibleValue = parts[1] ? val(parts[1]) : 0;
+            dval.textContent = "Showing: " + visibleValue;
+        } else if (cmd === "YOUR_TURN") {
+            play = true;
+            btns(true, true, false);
+        } else if (cmd === "DEALER_REVEAL") {
+            // reveal: sveliamo la prima carta coperta
+            if (dcards.children[0]) {
+                dcards.children[0].textContent = dc[0] || "?";
+                dcards.children[0].classList.remove("hidden");
+            }
+            // aggiorno valore con tutte le carte del dealer (se dc è popolato)
+            update(dval, dc);
+            await wait(500);
+        } else if (cmd === "DEALER_CARD") {
+            // payload è la carta pescata es. "9♣"
+            if (payload) {
+                dc.push(payload);
+                add(dcards, payload);
+                await wait(400);
+                update(dval, dc);
+            }
+        } else if (cmd === "RESULT") {
+            play = false;
+            btns(false, false, false);
+
+            // raw = "RESULT WIN DEALER A♥,10♠,9♣"
+            // payload = "WIN DEALER A♥,10♠,9♣"
+            const parts = payload ? payload.split(" ") : [];
+            const result = parts[0] || "";
+            // dealer cards string sta dopo la parola "DEALER"
+            const dealerIndex = parts.indexOf("DEALER");
+            let dealerCardsStr = "";
+            if (dealerIndex !== -1) {
+                // ricostruisco il resto dopo "DEALER"
+                dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
+            }
+
+            // Mostra risultato testuale all'utente
+            statusEl.textContent = result ? ("Result: " + result) : "";
+
+            // Se il server ha inviato le carte finali del dealer, ricostruiscile
+            if (dealerCardsStr) {
+                // split sulle virgole (potrebbe esserci uno spazio residuo)
+                const finalDealerCards = dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean);
+                
+                dcards.innerHTML = "";
+                dc = [];
+                
+                for (const card of finalDealerCards) {
+                    dc.push(card);
+                    add(dcards, card);
+                }
+                update(dval, dc);
+            }
+        } else if (cmd === "PLAY_AGAIN?") {
+            again.disabled = false;
+            hit.disabled = true;
+            stand.disabled = true;
+            play = false; 
+        } else if (cmd === "PLAY_AGAIN_LOCK") {
+            again.disabled = true;
+            hit.disabled = true;
+            stand.disabled = true;
+            play = false;
+        }
+    };
 }
 
-function val(h) {
+function send(m) {
+    if (ws && ws.readyState !== 1) return;
+    
+    if (m === "YES" && again.disabled) return;
+    if (m === "HIT" && hit.disabled) return;
+    if (m === "STAND" && stand.disabled) return;
+    
+    ws.send(m);
+    
+    if (m === "HIT" || m === "STAND") {
+        play = false;
+        btns(false, false, false);
+    } else if (m === "YES") {
+        again.disabled = true;
+    }
+}
+
+function leave() {
+    if (ws) ws.close();
+    game.classList.add("hidden");
+    lobby.classList.remove("hidden");
+    dcards.innerHTML = pcards.innerHTML = "";
+    dval.textContent = pval.textContent = "";
+    statusEl.textContent = "";
+    dc = pc = [];
+}
+
+function btns(h, s, a) {
+    hit.disabled = !h;
+    stand.disabled = !s;
+    again.disabled = !a;
+}
+
+function add(el, txt, hid) {
+    const d = document.createElement("div");
+    d.className = "card" + (hid ? " hidden" : "");
+    d.textContent = txt;
+    el.appendChild(d);
+}
+
+function wait(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
+function val(c) {
+    const v = c.slice(0, -1);
+    return v === "A" ? 11 : ["J", "Q", "K"].includes(v) ? 10 : +v;
+}
+
+function sum(cards) {
     let s = 0, a = 0;
-    for (const { v } of h) {
-        if (v === 1) { s += 11; a++; }
-        else s += v >= 11 ? 10 : v;
+    for (let c of cards) {
+        const v = c.slice(0, -1);
+        if (v === "A") { s += 11; a++; }
+        else s += ["J", "Q", "K"].includes(v) ? 10 : +v;
     }
     while (s > 21 && a > 0) { s -= 10; a--; }
     return s;
 }
 
-function fmt(c) {
-    const v = CARDS[c.v - 1];
-    return `${v}${c.s}`;
+function update(el, cards) {
+    const s = sum(cards);
+    el.textContent = "Value: " + s + (s > 21 ? " - BUST!" : s === 21 ? " - BLACKJACK!" : "");
 }
-
-function shuffle(deck) {
-    for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.random() * (i + 1) | 0;
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-}
-
-function draw(t) {
-    if (!t.d.length) {
-        console.log(`⚠️  [${t.code}] Reshuffle`);
-        t.d = [];
-        for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
-        shuffle(t.d);
-    }
-    return t.d.shift();
-}
-
-function send(client, m) {
-    if (client?.readyState === 1) client.send(m);
-}
-
-function all(t, m) {
-    t.c.forEach(c => send(c, m));
-}
-
-/**
- * resp(client)
- * - attende fino a 30s una risposta nella coda client.q
- * - se il client è chiuso o non risponde risolve con "STAND"
- * - rimuove automaticamente eventuali comandi non validi (timeout safe)
- */
-function resp(client) {
-    return new Promise(r => {
-        if (!client || client.readyState !== 1) return r("STAND");
-        let time = 0;
-        const iv = setInterval(() => {
-            // client might be closed while waiting
-            if (!client || client.readyState !== 1) {
-                clearInterval(iv);
-                return r("STAND");
-            }
-            if (client.q && client.q.length) {
-                clearInterval(iv);
-                r(client.q.shift());
-            } else if (time >= 30000) {
-                clearInterval(iv);
-                r("STAND");
-            }
-            time += 200;
-        }, 200);
-    });
-}
-
-/**
- * join(ws, code)
- * - se la partita è in corso (t.run === true) il client va in t.pending
- * - altrimenti entra in t.c e prende parte alla partita corrente
- */
-function join(ws, code) {
-    ws.table = code;
-    const t = tables[code];
-
-    // Reset coda messaggi per sicurezza
-    ws.q = ws.q || [];
-
-    if (!t.run) {
-        t.c.push(ws);
-        t.h.push([]);
-        send(ws, `TABLE_JOINED ${code}`);
-    } else {
-        // Partita in corso: aggiungilo come pending (partecipante per la prossima mano)
-        t.pending.push(ws);
-        t.pendingHands.push([]); // placeholder
-        send(ws, `TABLE_JOINED ${code}`); // mostra UI al client
-        send(ws, `JOINED_WAIT`); // opzionale: messaggio informativo
-        console.log(`➕ [${code}] Player joined as pending (will start next round)`);
-    }
-
-    // Se è il primo a unirsi e la partita non sta correndo, avvia il loop
-    if (!t.run && t.c.length > 0) {
-        t.run = true;
-        setTimeout(() => game(code), 1000);
-    }
-}
-
-/**
- * game(code)
- * - ciclo principale della partita
- * - usa t.c come giocatori attivi per la mano
- * - t.pending viene "assorbito" solo dopo la fase di Replay (prima della prossima mano)
- */
-async function game(code) {
-    const t = tables[code];
-    if (!t) return;
-    t.code = code;
-
-    console.log(`\n🎮 [${code}] Game start`);
-
-    // Setup mazzo
-    t.d = [];
-    for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
-    shuffle(t.d);
-
-    // Reset mani e invia reset
-    t.h = t.c.map(() => []);
-    all(t, "DEALER_RESET");
-    await wait(300);
-
-    // Dealer iniziale
-    const dealer = [draw(t), draw(t)];
-    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
-    await wait(800);
-
-    // Distribuzione ai giocatori attivi (solo t.c)
-    for (let i = 0; i < t.c.length; i++) {
-        if (!t.c[i] || t.c[i].readyState !== 1) continue;
-        t.h[i] = [draw(t), draw(t)];
-        send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
-    }
-    await wait(500);
-
-    // Turni giocatori (solo t.c)
-    for (let i = 0; i < t.c.length; i++) {
-        if (!t.c[i] || t.c[i].readyState !== 1) continue;
-        console.log(`🎯 [${code}] P${i + 1} turn`);
-
-        while (val(t.h[i]) < 21) {
-            send(t.c[i], "YOUR_TURN");
-            const response = await resp(t.c[i]);
-
-            // Manages if client closed during its turn
-            if (!t.c[i] || t.c[i].readyState !== 1) break;
-
-            if (response === "HIT") {
-                t.h[i].push(draw(t));
-                send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
-                if (val(t.h[i]) > 21) break;
-            } else break; // STAND or timeout
-        }
-    }
-
-    // Dealer turn se qualcuno non ha bust
-    const anyAlive = t.h.some(h => val(h) <= 21);
-
-    if (anyAlive) {
-        console.log(`🎲 [${code}] Dealer turn`);
-        all(t, "DEALER_REVEAL");
-        await wait(1000);
-
-        while (val(dealer) < 17) {
-            await wait(800);
-            dealer.push(draw(t));
-            all(t, `DEALER_CARD ${fmt(dealer[dealer.length - 1])}`);
-        }
-    } else {
-        console.log(`💥 [${code}] All bust`);
-        all(t, "DEALER_REVEAL");
-        await wait(1000);
-    }
-
-    // Calcolo risultati e invio
-    const dv = val(dealer);
-    console.log(`🏁 [${code}] Dealer: ${dv}`);
-
-    for (let i = 0; i < t.c.length; i++) {
-        const client = t.c[i];
-        if (!client || client.readyState !== 1) continue;
-        const p = val(t.h[i]);
-        let res;
-
-        if (p > 21) res = "LOSE";
-        else if (dv > 21) res = "WIN";
-        else if (p > dv) res = "WIN";
-        else if (p === dv) res = "PUSH";
-        else res = "LOSE";
-
-        send(client, `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
-    }
-    await wait(1000);
-
-    // --- Replay sequenziale robusto ---
-    // Prima assorbo eventuali pending come "entranti futuri" solo dopo che tutti i PLAY_AGAIN sono stati chiusi
-    // Replay: invia sequenzialmente PLAY_AGAIN? agli attivi in t.c; gli altri sono LOCKed
-
-    const survivors = [];
-
-    for (let i = 0; i < t.c.length; i++) {
-        const player = t.c[i];
-
-        // Se il client è già scollegato, salta
-        if (!player || player.readyState !== 1) continue;
-
-        // Blocca tutti (comunicazione esplicita)
-        t.c.forEach((other) => {
-            if (other && other.readyState === 1) {
-                send(other, "PLAY_AGAIN_LOCK");
-            }
-        });
-
-        // Ora manda il prompt SOLO al giocatore corrente
-        send(player, "PLAY_AGAIN?");
-
-        // Attendi la sua risposta
-        const r = await resp(player);
-
-        // Se il client si è chiuso durante l'attesa -> consideralo come NO
-        if (!player || player.readyState !== 1) {
-            console.log(`❌ [${code}] Player disconnected during replay`);
-            continue;
-        }
-
-        if (r === "YES") {
-            survivors.push(player);
-        } else {
-            // Chiusura volontaria o timeout -> lo rimuoviamo
-            try { player.close(); } catch (e) {}
-        }
-
-        // Piccolo delay per consentire sincronia client
-        await wait(200);
-    }
-
-    // Dopo che tutti i giocatori attivi hanno deciso, assorbo i pending come nuovi partecipanti
-    if (t.pending && t.pending.length) {
-        console.log(`➕ [${code}] Absorbing ${t.pending.length} pending players into next round`);
-        for (const p of t.pending) {
-            if (p && p.readyState === 1) {
-                survivors.push(p);
-            }
-        }
-        // Svuota pending
-        t.pending = [];
-        t.pendingHands = [];
-    }
-
-    // Riassegno t.c e mani
-    t.c = survivors;
-    t.h = t.c.map(() => []);
-
-    if (t.c.length > 0) {
-        console.log(`♻️  [${code}] Next round with ${t.c.length} players`);
-        await wait(2000);
-        // riparte il gioco
-        game(code);
-    } else {
-        console.log(`⏸️  [${code}] Empty, deleting table`);
-        delete tables[code];
-    }
-}
-
-// --- GESTIONE WEBSOCKET ---
-
-wss.on("connection", ws => {
-    ws.q = []; // Coda messaggi
-    ws.table = null;
-
-    ws.on("message", m => {
-        const msg = m.toString().trim();
-        const [cmd, data] = msg.split(' ', 2);
-
-        if (cmd === "CREATE") {
-            const code = genCode();
-            tables[code] = { c: [], h: [], d: [], run: false, pending: [], pendingHands: [] };
-            join(ws, code);
-            send(ws, `TABLE_CREATED ${code}`);
-            console.log(`✅ Table ${code} created`);
-        } else if (cmd === "JOIN") {
-            const code = data;
-            if (!tables[code]) send(ws, "TABLE_NOT_FOUND");
-            else if ((tables[code].c.length + tables[code].pending.length) >= MAX_PLAYERS) send(ws, "TABLE_FULL");
-            else {
-                join(ws, code);
-                send(ws, `TABLE_JOINED ${code}`);
-                console.log(`✅ Joined ${code} (active ${tables[code].c.length} / pending ${tables[code].pending.length})`);
-            }
-        } else {
-            // Comandi di gioco (HIT, STAND, YES) vanno in coda
-            // Nota: i client che sono in pending potranno comunque inviare comandi, ma questi verranno
-            // considerati solo quando il client verrà assorbito in t.c (evitiamo che disturbino la mano corrente)
-            ws.q.push(cmd);
-        }
-    });
-
-    ws.on("close", () => {
-        // Rimuovi da table.c o table.pending se presenti
-        if (ws.table && tables[ws.table]) {
-            const t = tables[ws.table];
-
-            // rimuovi da active
-            const i = t.c.indexOf(ws);
-            if (i !== -1) {
-                t.c.splice(i, 1);
-                t.h.splice(i, 1);
-                console.log(`❌ Player left ${ws.table} (active). Remaining active: ${t.c.length}`);
-            }
-
-            // rimuovi da pending
-            const j = t.pending.indexOf(ws);
-            if (j !== -1) {
-                t.pending.splice(j, 1);
-                t.pendingHands.splice(j, 1);
-                console.log(`❌ Player left ${ws.table} (pending). Remaining pending: ${t.pending.length}`);
-            }
-
-            // Se il tavolo è vuoto -> cancellalo
-            if ((!t.c || t.c.length === 0) && (!t.pending || t.pending.length === 0)) {
-                delete tables[ws.table];
-                console.log(`🗑️  Deleted ${ws.table}`);
-            }
-        }
-    });
-});
-
-// Avvia il server HTTP (e WS)
-server.listen(PORT, () => {
-    console.log(`🌐 HTTP server listening on port ${PORT}`);
-    console.log(`💬 WebSocket server active`);
-});
-
-// Alias per Promise basata su timeout
-function wait(ms) {
-    return new Promise(r => setTimeout(r, ms));
-}
+</script>
+</body>
+</html>
