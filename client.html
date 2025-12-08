@@ -1,349 +1,276 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8">
     <title>Blackjack</title>
     <style>
-        :root {
-            --bg-color: #2e7d32;
-            --card-color: white;
-            --card-back-color: #1565c0;
-            --primary-color: #4caf50;
-            --secondary-color: #ffeb3b;
-            --danger-color: #d32f2f;
-            --shadow-light: 0 4px 6px rgba(0, 0, 0, 0.2);
-        }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg-color);
-            color: var(--card-color);
-            text-align: center;
-            padding: 20px;
             margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+            background: #2e7d32;
+            color: white;
+            font-family: Arial;
         }
-        h1 { font-size: 2.5em; margin-bottom: 20px; color: var(--secondary-color); text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
-        .hidden { display: none; }
-        .lobby-box, #game { background: #1b5e20; padding: 30px; border-radius: 12px; max-width: 90%; width: 450px; margin: 20px auto; box-shadow: var(--shadow-light); }
-        .lobby-box input { padding: 10px; font-size: 16px; margin: 10px 0; width: 80%; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; text-transform: uppercase; }
-        #table-code { background: var(--primary-color); padding: 10px; border-radius: 6px; margin: 15px 0; font-size: 1.1em; font-weight: bold; letter-spacing: 1px; }
-        button { margin: 8px; padding: 12px 24px; font-size: 16px; border: none; border-radius: 25px; cursor: pointer; background: var(--primary-color); color: white; transition: background 0.3s, opacity 0.3s; font-weight: bold; box-shadow: 0 4px 0 #388e3c; }
-        button:hover:not(:disabled) { background: #388e3c; box-shadow: 0 2px 0 #388e3c; transform: translateY(2px); }
-        button:disabled { background: #666; cursor: not-allowed; box-shadow: none; opacity: 0.7; transform: translateY(0); }
-        .leave { background: var(--danger-color); box-shadow: 0 4px 0 #9f2424; }
-        .leave:hover:not(:disabled) { background: #9f2424; box-shadow: 0 2px 0 #9f2424; }
-        .card { display: inline-block; margin: 6px; padding: 15px 18px; background: var(--card-color); color: black; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: var(--shadow-light); min-width: 30px; transition: transform 0.4s ease-out; border: 1px solid #aaa; }
-        .card.hidden { background: var(--card-back-color); color: var(--card-back-color); border: 1px solid var(--card-back-color); position: relative; }
-        .card.hidden::before { content: '♠'; color: white; font-size: 1.5em; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .cards { margin: 20px 0; min-height: 80px; }
-        .value { font-size: 1.2em; color: var(--secondary-color); margin: 10px 0; font-weight: bold; }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #ffeb3b;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .box {
+            background: #1b5e20;
+            padding: 25px;
+            margin: 20px auto;
+            width: 420px;
+            border-radius: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 20px;
+            background: #4caf50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 8px;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .leave {
+            background: #d32f2f;
+        }
+
+        .cards {
+            min-height: 70px;
+            margin: 15px;
+        }
+
+        .card {
+            display: inline-block;
+            margin: 4px;
+            padding: 12px 16px;
+            background: white;
+            color: black;
+            border-radius: 6px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .hidden-card {
+            background: #1565c0;
+            color: #1565c0;
+        }
     </style>
 </head>
+
 <body>
-<h1>🎰 Blackjack Live</h1>
+    <h1>🎰 Blackjack Live</h1>
 
-<div id="lobby">
-    <div class="lobby-box">
-        <h2>Welcome!</h2>
-        <button onclick="connect('CREATE')">Create Table</button>
+    <!-- Lobby -->
+    <div id="lobby" class="box">
+        <button onclick="connectToServer('CREATE')">Create Table</button>
         <hr>
-        <input id="code" placeholder="Enter 6-char code" maxlength="6">
-        <button onclick="connect('JOIN ' + document.getElementById('code').value.toUpperCase())">Join Table</button>
+        <input id="tableCodeInput" placeholder="Table code" maxlength="6" style="text-transform:uppercase;">
+        <button onclick="connectToServer('JOIN ' + tableCodeInput.value.toUpperCase())">Join Table</button>
     </div>
-</div>
 
-<div id="game" class="hidden">
-    <div id="table-code"></div>
-    <div id="waiting" class="value hidden">⏳ Sei in attesa, parteciperai al prossimo round</div>
-    <h3>Dealer</h3>
-    <div id="dval" class="value"></div>
-    <div id="dcards" class="cards"></div>
-    <h3>Player</h3>
-    <div id="pval" class="value"></div>
-    <div id="pcards" class="cards"></div>
-    <div id="status" class="value"></div>
-    <div class="actions">
-        <button id="hit" onclick="send('HIT')" disabled>HIT</button>
-        <button id="stand" onclick="send('STAND')" disabled>STAND</button>
-        <button id="again" onclick="send('YES')" disabled>PLAY AGAIN</button>
+    <!-- Game -->
+    <div id="gameBox" class="box hidden">
+        <div id="tableCodeDisplay"></div>
+
+        <h3>Dealer</h3>
+        <div id="dealerHandValue"></div>
+        <div id="dealerCardsContainer" class="cards"></div>
+
+        <h3>Player</h3>
+        <div id="playerHandValue"></div>
+        <div id="playerCardsContainer" class="cards"></div>
+
+        <button id="hitButton" onclick="sendPlayerCommand('HIT')" disabled>HIT</button>
+        <button id="standButton" onclick="sendPlayerCommand('STAND')" disabled>STAND</button>
+        <button id="playAgainButton" onclick="sendPlayerCommand('YES')" disabled>PLAY AGAIN</button>
+
+        <br>
+        <button class="leave" onclick="leaveTable()">LEAVE</button>
     </div>
-    <button class="leave" onclick="leave()">LEAVE</button>
-</div>
 
-<script>
-/*
-  Client-side improvements and bug fixes:
-  - Revealing the dealer's hidden card is now robust: the client stores the hidden card in dataset
-    and removes the 'hidden' class BEFORE setting the visible text, so the card is actually visible.
-  - DEALER_REVEAL and RESULT both trigger reveal logic (RESULT can carry final dealer cards).
-  - Added websocket onclose/onerror handling to restore lobby.
-  - Minor robustness: handle missing payloads gracefully.
-*/
+    <script>
+        const $ = id => document.getElementById(id);
 
-const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl, waiting] = 
-['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status', 'waiting'].map(id => document.getElementById(id));
+        const lobbyBox = $("lobby");
+        const gameBox = $("gameBox");
 
-let ws, play = false, pc = [], dc = [];
+        const playerCardsContainer = $("playerCardsContainer");
+        const dealerCardsContainer = $("dealerCardsContainer");
 
-function connect(msg) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    ws = new WebSocket(`${protocol}//${host}`);
+        const playerHandValue = $("playerHandValue");
+        const dealerHandValue = $("dealerHandValue");
 
-    ws.onopen = () => {
-        console.log("WS open, sending:", msg);
-        ws.send(msg);
-    };
+        const hitButton = $("hitButton");
+        const standButton = $("standButton");
+        const playAgainButton = $("playAgainButton");
 
-    ws.onmessage = async e => {
-        const raw = e.data;
-        // split into command and payload (payload may be undefined)
-        const partsSplit = raw.split(' ');
-        const cmd = partsSplit[0] || raw;
-        const payload = raw.includes(' ') ? raw.slice(cmd.length + 1) : "";
+        let websocket;
+        let playerCards = [];
+        let dealerCards = [];
 
-        console.log("WS recv:", {cmd, payload});
+        function connectToServer(message) {
+            const protocol = location.protocol === "https:" ? "wss" : "ws";
+            websocket = new WebSocket(`${protocol}://${location.host}`);
 
-        if (cmd.startsWith("TABLE_")) {
-            if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
-                lobby.classList.add("hidden");
-                game.classList.remove("hidden");
-                document.getElementById("table-code").textContent = "Code: " + (payload || "");
-            } else if (cmd === "TABLE_NOT_FOUND") alert("Table not found!");
-            else if (cmd === "TABLE_FULL") alert("Table full!");
-        } 
-        else if (cmd === "PLAY_AGAIN_LOCK") {
-            waiting.classList.remove("hidden");
-            btns(false, false, false);
-        }
-        else if (cmd === "PLAY_AGAIN?") {
-            waiting.classList.add("hidden");
-            again.disabled = false;
-            hit.disabled = true;
-            stand.disabled = true;
-            play = false;
-        }
-        else if (cmd === "CARDS") {
-            // payload: comma-separated player cards (e.g. "J♠,7♦")
-            const cards = payload ? payload.split(",").map(s => s.trim()).filter(Boolean) : [];
-            // add newly received cards (animation)
-            for (let c of cards.slice(pc.length)) {
-                add(pcards, c);
-                await wait(400);
-            }
-            pc = cards;
-            update(pval, pc);
-        }
-        else if (cmd === "DEALER_RESET") {
-            dcards.innerHTML = dval.textContent = "";
-            pcards.innerHTML = pval.textContent = "";
-            statusEl.textContent = "";
-            dc = pc = [];
-            btns(false, false, false);
-            waiting.classList.add("hidden");
-        }
-        else if (cmd === "DEALER_INIT") {
-            // payload expected: two tokens separated by space: "C1 C2"
-            // C2 should be the actual card value (e.g. "9♦" or "J♣") but shown as hidden on client.
-            const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
-            dcards.innerHTML = "";
-            dc = [];
+            websocket.onopen = () => websocket.send(message);
 
-            if (parts[0]) {
-                // prima carta visibile
-                add(dcards, parts[0]);
-                dc.push(parts[0]);
-            }
-            if (parts[1]) {
-                // seconda carta coperta: store value in dataset so we can reveal later
-                add(dcards, parts[1], true);
-                dc.push(parts[1]);
-            }
+            websocket.onmessage = async event => {
+                const [command, data] = event.data.split(" ", 2);
 
-            // mostra valore solo della prima carta
-            const visibleValue = parts[0] ? val(parts[0]) : 0;
-            dval.textContent = "Showing: " + visibleValue;
-        }
-        else if (cmd === "YOUR_TURN") {
-            play = true;
-            waiting.classList.add("hidden");
-            btns(true, true, false);
-        }
-        else if (cmd === "DEALER_REVEAL") {
-            // payload optional: comma-separated dealer cards to set explicitly
-            // if payload is empty, just reveal the existing hidden card(s)
-            if (payload) {
-                // set explicit dealer cards (e.g. "J♠,9♦,5♣")
-                const final = payload.split(",").map(s => s.trim()).filter(Boolean);
-                // clear and render final dealer cards
-                dcards.innerHTML = "";
-                dc = [];
-                for (const card of final) {
-                    add(dcards, card);
-                    dc.push(card);
+                switch (command) {
+
+                    case "TABLE_CREATED":
+                    case "TABLE_JOINED":
+                        lobbyBox.classList.add("hidden");
+                        gameBox.classList.remove("hidden");
+                        $("tableCodeDisplay").textContent = "Code: " + data;
+                        // Ensure all action buttons are disabled when joining a table
+                        toggleButtons(false, false, false);
+                        break;
+
+                    case "TABLE_NOT_FOUND": alert("Table not found"); break;
+                    case "TABLE_FULL": alert("Table full"); break;
+
+                    case "DEALER_RESET":
+                        dealerCards = playerCards = [];
+                        dealerCardsContainer.innerHTML = playerCardsContainer.innerHTML = "";
+                        dealerHandValue.textContent = playerHandValue.textContent = "";
+                        // Reset buttons at the start of a new hand
+                        toggleButtons(false, false, false);
+                        break;
+
+                    case "DEALER_INIT": {
+                        const [firstCard, secondCard] = data.split(" ");
+                        dealerCards = [firstCard, secondCard];
+                        dealerCardsContainer.innerHTML = "";
+                        addCardToContainer(dealerCardsContainer, "🂠", true);
+                        await sleep(300);
+                        addCardToContainer(dealerCardsContainer, secondCard);
+                        dealerHandValue.textContent = "Showing: " + getCardValue(secondCard);
+                        break;
+                    }
+
+                    case "CARDS":
+                        playerCards = data.split(",");
+                        renderCards(playerCardsContainer, playerCards);
+                        updateHandValue(playerHandValue, playerCards);
+                        break;
+
+                    case "YOUR_TURN":
+                        toggleButtons(true, true, false);
+                        break;
+
+                    case "DEALER_REVEAL":
+                        dealerCardsContainer.children[0].classList.remove("hidden-card");
+                        dealerCardsContainer.children[0].textContent = dealerCards[0];
+                        updateHandValue(dealerHandValue, dealerCards);
+                        break;
+
+                    case "DEALER_CARD":
+                        dealerCards.push(data);
+                        addCardToContainer(dealerCardsContainer, data);
+                        updateHandValue(dealerHandValue, dealerCards);
+                        break;
+
+                    case "RESULT": {
+                        toggleButtons(false, false, false);
+                        const parts = event.data.split(" ");
+                        const result = parts[1]; // WIN, LOSE, or PUSH
+                        const dealerCardsList = parts[3]?.split(",") || [];
+                        dealerCards = dealerCardsList;
+                        renderCards(dealerCardsContainer, dealerCards);
+                        updateHandValue(dealerHandValue, dealerCards);
+                        
+                        // Display result to player
+                        const resultMessage = result === "WIN" ? "🎉 HAI VINTO!" : 
+                                             result === "PUSH" ? "🤝 PAREGGIO" : 
+                                             "😞 HAI PERSO";
+                        playerHandValue.textContent += " - " + resultMessage;
+                        break;
+                    }
+
+                    case "PLAY_AGAIN?":
+                        toggleButtons(false, false, true);
+                        break;
+
+                    case "PLAY_AGAIN_LOCK":
+                        toggleButtons(false, false, false);
+                        break;
                 }
-                update(dval, dc);
-            } else {
-                // reveal existing hidden card(s) stored in dataset or dc array
-                revealHiddenDealerCard();
-                update(dval, dc);
-            }
-            await wait(500);
+            };
         }
-        else if (cmd === "DEALER_CARD") {
-            // payload: single card (e.g. "5♣")
-            if (payload) {
-                const card = payload.trim();
-                dc.push(card);
-                add(dcards, card);
-                await wait(400);
-                update(dval, dc);
-            }
+
+        function sendPlayerCommand(command) {
+            if (!websocket) return;
+            if (command === 'STAND') toggleButtons(false, false, false);
+            websocket.send(command);
         }
-        else if (cmd === "RESULT") {
-            play = false;
-            btns(false, false, false);
-            const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
-            const result = parts[0] || "";
-            // find if the token "DEALER" appears; everything after are dealer cards joined by spaces or commas
-            const dealerIndex = parts.indexOf("DEALER");
-            let dealerCardsStr = "";
-            if (dealerIndex !== -1) {
-                // take remainder of the payload starting from token after DEALER
-                dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
-            }
 
-            statusEl.textContent = result ? ("Result: " + result) : "";
-
-            if (dealerCardsStr) {
-                // normalize: split by comma if present, otherwise by whitespace
-                let finalDealerCards = dealerCardsStr.includes(",")
-                    ? dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean)
-                    : dealerCardsStr.split(" ").map(s => s.trim()).filter(Boolean);
-                dcards.innerHTML = "";
-                dc = [];
-                for (const card of finalDealerCards) {
-                    dc.push(card);
-                    add(dcards, card);
-                }
-                update(dval, dc);
-            } else {
-                // if server didn't send final cards, at least reveal hidden if present
-                revealHiddenDealerCard();
-                update(dval, dc);
-            }
+        function toggleButtons(enableHit, enableStand, enablePlayAgain) {
+            hitButton.disabled = !enableHit;
+            standButton.disabled = !enableStand;
+            playAgainButton.disabled = !enablePlayAgain;
         }
-    };
 
-    ws.onerror = (err) => {
-        console.error("WebSocket error", err);
-        alert("WebSocket error, controlla il server.");
-    };
-
-    ws.onclose = () => {
-        console.log("WebSocket closed");
-        // Reset UI to lobby
-        game.classList.add("hidden");
-        lobby.classList.remove("hidden");
-        dcards.innerHTML = pcards.innerHTML = "";
-        dval.textContent = pval.textContent = "";
-        statusEl.textContent = "";
-        waiting.classList.add("hidden");
-        dc = pc = [];
-    };
-}
-
-function send(m) {
-    if (!ws || ws.readyState !== 1) {
-        alert("Connessione non disponibile.");
-        return;
-    }
-    if (m === "YES" && again.disabled) return;
-    if (m === "HIT" && hit.disabled) return;
-    if (m === "STAND" && stand.disabled) return;
-    ws.send(m);
-    if (m === "HIT" || m === "STAND") {
-        play = false;
-        btns(false, false, false);
-    } else if (m === "YES") {
-        again.disabled = true;
-    }
-}
-
-function leave() {
-    if (ws) ws.close();
-    game.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    dcards.innerHTML = pcards.innerHTML = "";
-    dval.textContent = pval.textContent = "";
-    statusEl.textContent = "";
-    waiting.classList.add("hidden");
-    dc = pc = [];
-}
-
-function btns(h, s, a) {
-    hit.disabled = !h;
-    stand.disabled = !s;
-    again.disabled = !a;
-}
-
-function add(el, txt, hid) {
-    // create a card element; if hid==true, store the real card value in data-card and add class 'hidden'
-    const d = document.createElement("div");
-    d.className = "card" + (hid ? " hidden" : "");
-    // store card value explicitly so we can reveal it regardless of any client array state
-    d.dataset.card = txt;
-    // If hidden, the CSS will hide the text color. Still set the text for accessibility and for reveal.
-    d.textContent = txt;
-    el.appendChild(d);
-}
-
-function revealHiddenDealerCard() {
-    // Find any card elements with class 'hidden' in dealer area and reveal them using their dataset.card.
-    for (let i = 0; i < dcards.children.length; i++) {
-        const child = dcards.children[i];
-        if (child.classList.contains("hidden")) {
-            // remove hidden class BEFORE setting text (so color becomes visible)
-            child.classList.remove("hidden");
-            // Use stored dataset.card if available; fallback to existing text or dc array
-            const real = child.dataset.card || (dc[i] || child.textContent);
-            child.textContent = real;
-            // ensure dc array has the correct value in same position
-            if (!dc[i]) dc[i] = real;
+        function leaveTable() {
+            websocket?.close();
+            gameBox.classList.add("hidden");
+            lobbyBox.classList.remove("hidden");
         }
-    }
-}
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+        function addCardToContainer(container, card, hidden = false) {
+            const cardDiv = document.createElement("div");
+            cardDiv.className = "card" + (hidden ? " hidden-card" : "");
+            cardDiv.textContent = card;
+            container.appendChild(cardDiv);
+        }
 
-function val(c) {
-    if (!c) return 0;
-    const v = c.slice(0, -1);
-    if (v === "A") return 11;
-    if (["J","Q","K"].includes(v)) return 10;
-    const n = +v;
-    return Number.isNaN(n) ? 0 : n;
-}
+        function renderCards(container, cards) {
+            container.innerHTML = "";
+            cards.forEach(card => addCardToContainer(container, card));
+        }
 
-function sum(cards) {
-    let s = 0, a = 0;
-    for (let c of cards) {
-        if (!c) continue;
-        const v = c.slice(0, -1);
-        if (v === "A") { s += 11; a++; }
-        else s += ["J","Q","K"].includes(v) ? 10 : +v;
-    }
-    while (s > 21 && a > 0) { s -= 10; a--; }
-    return s;
-}
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function update(el, cards) {
-    const s = sum(cards);
-    el.textContent = "Value: " + s + (s>21 ? " - BUST!" : s===21 ? " - BLACKJACK!" : "");
-}
-</script>
+        function getCardValue(card) {
+            const value = card.slice(0, -1);
+            return value === "A" ? 11 : ["J", "Q", "K"].includes(value) ? 10 : +value;
+        }
+
+        function calculateHandValue(cards) {
+            let total = 0, acesCount = 0;
+            for (let card of cards) {
+                let value = getCardValue(card);
+                if (card[0] === "A") acesCount++;
+                total += value;
+            }
+            while (total > 21 && acesCount--) total -= 10;
+            return total;
+        }
+
+        function updateHandValue(element, cards) {
+            const total = calculateHandValue(cards);
+            element.textContent = "Value: " + total + (total > 21 ? " BUST" : total === 21 ? " BLACKJACK" : "");
+        }
+    </script>
+
 </body>
+
 </html>

@@ -1,297 +1,338 @@
-const express = require('express');
-const http = require('http');
+// Importa il framework Express, che semplifica la creazione di server web
+const express = require("express");
+// Importa il modulo HTTP necessario per creare server HTTP
+const http = require("http");
+// Importa la libreria 'ws' per gestire WebSocket
 const WebSocket = require("ws");
-const path = require('path');
+// Importa il modulo 'path' di Node.js per gestire i percorsi dei file
+const path = require("path");
 
 const app = express();
+// Creo il server HTTP utilizzando l'app Express
 const server = http.createServer(app);
 
+// Tutti i file presenti nella directory dello script saranno accessibili direttamente via URL es. localhost:8000/server.js
 app.use(express.static(__dirname));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client.html'));
-});
+// Rimanda al file "client.html" presente nella cartella corrente
+app.get("/", (_, res) => res.sendFile(path.join(__dirname, "client.html")));
 
+// Creo un server WebSocket associato al server HTTP, in modo tale che i client condividono la stessa porta
 const wss = new WebSocket.Server({ server });
 
-const tables = {};
-const MAX_PLAYERS = 5;
-const CARDS = Array.from({ length: 13 }, (_, i) => i === 0 ? 'A' : i < 9 ? String(i + 1) : ['10', 'J', 'Q', 'K'][i - 9]);
+const PORT = 8000;
+const MAX_PLAYERS_PER_TABLE = 5;
+
+// Salvo i semi e i valori delle carte in costanti
 const SUITS = ["♥", "♦", "♣", "♠"];
-const PORT = process.env.PORT || 8080;
+const CARD_VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
-console.log(`🎰 Server starting on port ${PORT}...`);
+// Definisco un oggetto per tenere traccia dei tavoli di gioco attivi (salvando i codici univoci)
+const tables = {};
 
-// --- UTILITY ---
-
-function genCode() {
-    let c;
-    do c = Math.random().toString(36).substr(2, 6).toUpperCase();
-    while (tables[c]);
-    return c;
+// Funzione per impostare dei timer di attesa nel server
+function wait(ms) {
+    return new Promise(function(resolve) {
+        setTimeout(resolve, ms);
+    });
 }
 
-function val(h) {
-    let s = 0, a = 0;
-    for (const { v } of h) {
-        if (v === 1) { s += 11; a++; }
-        else s += v >= 11 ? 10 : v;
-    }
-    while (s > 21 && a > 0) { s -= 10; a--; }
-    return s;
+// Funzione per creare un mazzo di carte mischiato
+function createDeck() {
+    const deck = [];
+    for (let suit of SUITS)
+        for (let valueIndex = 0; valueIndex < 13; valueIndex++)
+            deck.push({ valueIndex, suit });
+    // Mischia il mazzo prima di restituirlo
+    return shuffle(deck);
 }
 
-function fmt(c) {
-    const v = CARDS[c.v - 1];
-    return `${v}${c.s}`;
-}
-
-function shuffle(deck) {
-    for (let i = deck.length - 1; i > 0; i--) {
+// Funzione per mischiare un array (Fisher-Yates Shuffle)
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// Funzione che emette la carta come stringa (es. "A♥", "10♠", "K♦")
+function formatCard(card) {
+    return CARD_VALUES[card.valueIndex] + card.suit;
+}
+
+// Funzione per generare un codice univoco per ogni tavolo
+function generateTableCode() {
+    let code;
+    // toString(36) converte il numero in base 36 (numeri + lettere), slice(2, 8) prende 6 caratteri (2-6, escludendo "0.")
+    do code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    while (tables[code]);
+    return code;
+}
+
+// Funzione per calcolare il valore di una mano
+function getHandValue(hand) {
+    let total = 0, acesCount = 0;
+    for (let card of hand) {
+        let value;
+
+        if (card.valueIndex === 0){
+            // L'Asso vale 11 inizialmente
+            value = 11;
+            acesCount++;
+        } else if (card.valueIndex >= 10) {
+            // Re, Regina, Fante valgono 10
+            value = 10;
+        } else {
+            // Tutte le altre carte valgono il loro indice + 1
+            value = card.valueIndex + 1;
+        }
+
+        total += value;
+    }
+
+    // Gestione del valore dell'Asso (11 o 1)
+    while (total > 21 && acesCount > 0) {
+        total -= 10; // riduce 11 a 1 per un Asso
+        acesCount--; // decrementa il numero di assi da considerare
+    }
+
+    return total;
+}
+
+// Funzione per inviare un messaggio a un client
+function sendMessage(ws, message) {
+    // Controlla che il destinatario esista e che la connessione WebSocket sia aperta
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+        console.log("Messaggio inviato:", message);
+    } else {
+        console.log("Impossibile inviare il messaggio: connessione chiusa o inesistente");
     }
 }
 
-function draw(t) {
-    if (!t.d.length) {
-        console.log(`⚠️ [${t.code}] Reshuffle`);
-        t.d = [];
-        for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
-        shuffle(t.d);
+// Funzione per inviare un messaggio a tutti i giocatori di un tavolo
+function broadcastMessage(table, message) {
+    for (let player of table.players) {
+        sendMessage(player, message);
     }
-    return t.d.shift();
 }
 
-function send(client, m) {
-    if (client?.readyState === 1) client.send(m);
-}
-
-function all(t, m) {
-    t.c.forEach(c => send(c, m));
-}
-
-function resp(client) {
-    return new Promise(r => {
-        let time = 0;
-        const iv = setInterval(() => {
-            if (!client || client.readyState !== 1) { 
-                clearInterval(iv); 
-                r("STAND"); 
-                return; 
+// Funzione per controllare periodicamente se il giocatore ha risposto, altrimenti restituisce "STAND" dopo 30 secondi
+function waitForPlayerResponse(ws) {
+    return new Promise(resolve => {
+        // In caso di connessione già chiusa, risponde con "STAND"
+        if (!ws || ws.readyState !== WebSocket.OPEN) return resolve("STAND");
+        
+        let elapsedTime = 0;
+        const interval = setInterval(() => {
+            // In caso di disconnessione durante l'attesa, risponde con "STAND"
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                clearInterval(interval); // Fermo l'esecuzione del timer ogni 200ms
+                resolve("STAND");
+            } else if (ws.queue.length > 0) { // Se il giocatore ha risposto, restituisce la risposta
+                clearInterval(interval);
+                resolve(ws.queue.shift()); // Restituisco la prima risposta in coda (potrebbero essercene più di una)
+            } else if (elapsedTime > 30000) { // Timeout di 30 secondi
+                clearInterval(interval);
+                resolve("STAND");
             }
-            time += 200;
-            if (client.q.length) { 
-                clearInterval(iv); 
-                r(client.q.shift()); 
-            }
-            else if (time >= 30000) { 
-                clearInterval(iv); 
-                r("STAND"); 
-            }
+            elapsedTime += 200;
         }, 200);
     });
 }
 
-function getActivePlayers(t) {
-    return t.h.map((h, i) => h.length > 0 ? i : -1).filter(i => i !== -1);
-}
+// Funzione per unire un giocatore a un tavolo
+function joinTable(ws, tableCode) {
+    const table = tables[tableCode]; // Ottengo il tavolo corrispondente al codice
+    ws.tableCode = tableCode; // Associo il codice del tavolo al giocatore
+    ws.queue = []; // Inizializzo la coda dei messaggi del giocatore
 
-// --- GESTIONE CLIENT CHE SI UNISCONO ---
-
-function join(ws, code) {
-    ws.table = code;
-    const t = tables[code];
-
-    if (t.run) {
-        // Partita in corso: nuovo client in modalità "attesa"
-        send(ws, "PLAY_AGAIN_LOCK");
-        t.c.push(ws);
-        t.h.push([]); // mano vuota, parteciperà al prossimo round
-        console.log(`👀 Player joined ${code} in waiting mode`);
+    // Aggiungo il giocatore alla lista dei giocatori attivi o in attesa, a seconda dello stato del tavolo
+    if (!table.isRunning) {
+        table.players.push(ws);
+        table.hands.push([]);
     } else {
-        t.c.push(ws);
-        t.h.push([]);
-        if (!t.run && t.c.length > 0) {
-            t.run = true;
-            setTimeout(() => game(code), 1000);
-        }
+        table.pendingPlayers.push(ws);
+        table.pendingHands.push([]);
+    }
+
+    sendMessage(ws, `TABLE_JOINED ${tableCode}`);
+
+    if (!table.isRunning && table.players.length === 1) {
+        table.isRunning = true;
+        runGameLoop(tableCode);
     }
 }
 
-// --- LOOP DI GIOCO ---
+// Funzione principale del ciclo di gioco
+async function runGameLoop(tableCode) {
+    const table = tables[tableCode];
+    if (!table) return;
 
-async function game(code) {
-    const t = tables[code];
-    if (!t) return;
-    t.code = code;
+    table.deck = createDeck();
+    table.hands = table.players.map(() => []); // Inizializzo le mani dei giocatori
+    broadcastMessage(table, "DEALER_RESET");
 
-    console.log(`\n🎮 [${code}] Game start with ${t.c.length} players`);
+    // Prendo le prime due carte per il dealer dal mazzo
+    table.dealer = [table.deck.shift(), table.deck.shift()];
+    broadcastMessage(table, `DEALER_INIT ${formatCard(table.dealer[0])} ${formatCard(table.dealer[1])}`);
+    await wait(600);
 
-    // 1. Setup mazzo e reset
-    t.d = [];
-    for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
-    shuffle(t.d);
-    all(t, "DEALER_RESET");
-    await wait(300);
+    // Distribuisco le carte ai giocatori
+    for (let i = 0; i < table.players.length; i++) {
+        const player = table.players[i];
 
-    // 2. Distribuzione iniziale dealer
-    const dealer = [draw(t), draw(t)];
-    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
-    await wait(800);
+        // Assegna le due carte seguenti del mazzo al giocatore
+        table.hands[i] = [];
+        table.hands[i].push(table.deck.shift());
+        table.hands[i].push(table.deck.shift());
 
-    // 3. Distribuzione iniziale giocatori (solo chi ha mano vuota non è in attesa)
-    for (let i = 0; i < t.c.length; i++) {
-        if (t.h[i].length !== 0) continue; // skip player entrato in ritardo
-        t.h[i] = [draw(t), draw(t)];
-        send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
+        const cardsMessage = "CARDS " + table.hands[i].map(formatCard).join(",");
+        sendMessage(player, cardsMessage);
     }
-    await wait(500);
+    await wait(400);
 
-    // 4. Turno giocatori
-    const activeIndices = getActivePlayers(t);
-    for (let idx of activeIndices) {
-        console.log(`🎯 [${code}] P${idx + 1} turn`);
-        while (val(t.h[idx]) < 21) {
-            send(t.c[idx], "YOUR_TURN");
-            const response = await resp(t.c[idx]);
+    // Gestione dei giocatori, uno per volta
+    for (let i = 0; i < table.players.length; i++) {
+        const player = table.players[i];
+        if (!player || player.readyState !== WebSocket.OPEN) continue;
+
+        while (getHandValue(table.hands[i]) < 21) {
+            sendMessage(player, "YOUR_TURN");
+            const response = await waitForPlayerResponse(player);
+
             if (response === "HIT") {
-                t.h[idx].push(draw(t));
-                send(t.c[idx], `CARDS ${t.h[idx].map(fmt).join(",")}`);
-                if (val(t.h[idx]) > 21) break;
+                table.hands[i].push(table.deck.shift());
+                sendMessage(player, "CARDS " + table.hands[i].map(formatCard).join(","));
+                if (getHandValue(table.hands[i]) > 21) break;
             } else break;
         }
     }
 
-    // 5. Turno dealer
-    const anyAlive = activeIndices.some(i => val(t.h[i]) <= 21);
-    if (anyAlive) {
-        console.log(`🎲 [${code}] Dealer turn`);
-        all(t, "DEALER_REVEAL");
-        await wait(1000);
-        while (val(dealer) < 17 && activeIndices.some(i => val(t.h[i]) <= 21)) {
-            await wait(800);
-            dealer.push(draw(t));
-            all(t, `DEALER_CARD ${fmt(dealer[dealer.length - 1])}`);
+    // Chiusura da parte del dealer
+    let hasActivePlayer = false;
+
+    for (const hand of table.hands) {
+        const value = getHandValue(hand);
+        if (value <= 21) { // Se un giocatore non busta
+            hasActivePlayer = true;
+            break;
         }
-    } else {
-        console.log(`💥 [${code}] All bust`);
-        all(t, "DEALER_REVEAL");
-        await wait(1000);
     }
 
-    // 6. Calcolo risultati (solo per attivi)
-    const dv = val(dealer);
-    console.log(`🏁 [${code}] Dealer: ${dv}`);
-    for (let i of activeIndices) {
-        const p = val(t.h[i]);
-        let res;
-        if (p > 21) res = "LOSE";
-        else if (dv > 21) res = "WIN";
-        else if (p > dv) res = "WIN";
-        else if (p === dv) res = "PUSH";
-        else res = "LOSE";
-        send(t.c[i], `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
+    broadcastMessage(table, "DEALER_REVEAL");
+    await wait(800);
+
+    while (hasActivePlayer && getHandValue(table.dealer) < 17) {
+        const card = table.deck.shift();
+        table.dealer.push(card);
+        broadcastMessage(table, "DEALER_CARD " + formatCard(card));
+        await wait(500);
     }
 
-    await wait(1000);
+    // Manda i risultati ai giocatori
+    const dealerValue = getHandValue(table.dealer);
+    for (let i = 0; i < table.players.length; i++) {
+        const playerValue = getHandValue(table.hands[i]);
+        let result;
 
-    // 7. Replay: gestione parallela per evitare blocco
-    console.log(`⏳ [${code}] Asking all players for replay...`);
-    all(t, "PLAY_AGAIN?");
-    
-    // Svuota le code prima di aspettare le risposte
-    t.c.forEach(ws => ws.q = []);
-    
-    const responses = await Promise.all(t.c.map(ws => resp(ws)));
-    console.log(`📊 [${code}] Responses:`, responses);
-
-    const nextClients = [];
-    for (let i = 0; i < t.c.length; i++) {
-        if (responses[i] === "YES") {
-            nextClients.push(t.c[i]);
-            console.log(`✅ [${code}] Player ${i + 1} wants to replay`);
+        if (playerValue > 21) {
+            result = "LOSE";
+        } else if (dealerValue > 21) {
+            result = "WIN";
+        } else if (playerValue > dealerValue) {
+            result = "WIN";
+        } else if (playerValue === dealerValue) {
+            result = "PUSH";
         } else {
-            console.log(`❌ [${code}] Player ${i + 1} left`);
-            t.c[i].close();
+            result = "LOSE";
+        }
+        sendMessage(player, `RESULT ${result} DEALER ${table.dealer.map(formatCard).join(",")}`);
+    }
+    await wait(600);
+
+    // Ricomincia il ciclo di gioco se ci sono ancora giocatori attivi
+    const remainingPlayers = [];
+    for (let player of table.players) {
+        if (!player || player.readyState !== WebSocket.OPEN) continue;
+        broadcastMessage(table, "PLAY_AGAIN_LOCK");
+        sendMessage(player, "PLAY_AGAIN?");
+
+        const response = await waitForPlayerResponse(player);
+        if (response === "YES") remainingPlayers.push(player);
+        else try { player.close(); } catch { } // Disconnette il giocatore se possibile
+        await wait(200);
+    }
+
+    // Aggiungi giocatori in attesa di giocare
+    for (let i = 0; i < table.pendingPlayers.length; i++) {
+        const player = table.pendingPlayers[i];
+
+        if (player.readyState === WebSocket.OPEN) {
+            remainingPlayers.push(player);
         }
     }
 
-    t.c = nextClients;
-    t.h = nextClients.map(() => []);
-    
-    if (t.c.length > 0) {
-        console.log(`♻️ [${code}] Next round with ${t.c.length} players`);
-        await wait(2000);
-        game(code);
+    // Resetta lo stato del tavolo per il prossimo ciclo di gioco
+    table.pendingPlayers = [];
+    table.pendingHands = [];
+    table.players = remainingPlayers;
+
+    if (table.players.length) {
+        await wait(1500);
+        runGameLoop(tableCode);
     } else {
-        console.log(`⏸️ [${code}] Empty, deleting table`);
-        t.run = false;
-        delete tables[code];
+        delete tables[tableCode];
     }
 }
 
-// --- WEBSOCKET ---
-
 wss.on("connection", ws => {
-    ws.q = [];
-    ws.table = null;
+    ws.queue = [];
+    // Gestione messaggi ricevuti dal client
+    ws.on("message", rawMessage => {
+        const message = rawMessage.toString().trim(); // Converto il messaggio in stringa e rimuovo spazi
+        const [command, data] = message.split(" ", 2); // Divido il messaggio in comando e dati
 
-    ws.on("message", m => {
-        const msg = m.toString().trim();
-        const [cmd, data] = msg.split(' ', 2);
-
-        if (cmd === "CREATE") {
-            const code = genCode();
-            tables[code] = { c: [], h: [], d: [], run: false };
-            join(ws, code);
-            send(ws, `TABLE_CREATED ${code}`);
-            console.log(`✅ Table ${code} created`);
-        } else if (cmd === "JOIN") {
-            const code = data;
-            if (!tables[code]) send(ws, "TABLE_NOT_FOUND");
-            else if (tables[code].c.length >= MAX_PLAYERS) send(ws, "TABLE_FULL");
-            else {
-                join(ws, code);
-                send(ws, `TABLE_JOINED ${code}`);
-                console.log(`✅ Joined ${code} (${tables[code].c.length}/${MAX_PLAYERS})`);
-            }
+        if (command === "CREATE") {
+            const code = generateTableCode();
+            // Struttura del tavolo
+            tables[code] = {
+                players: [], hands: [],
+                pendingPlayers: [], pendingHands: [],
+                deck: [], dealer: [], isRunning: false
+            };
+            joinTable(ws, code); // Unisce il giocatore al tavolo appena creato
+            sendMessage(ws, `TABLE_CREATED ${code}`);
+        } else if (command === "JOIN") {
+            if (!tables[data]) return sendMessage(ws, "TABLE_NOT_FOUND"); // Controlla se il tavolo esiste (data = codice)
+            const table = tables[data];
+            if (table.players.length + table.pendingPlayers.length >= MAX_PLAYERS_PER_TABLE)
+                return sendMessage(ws, "TABLE_FULL");
+            joinTable(ws, data); // Unisce il giocatore al tavolo
         } else {
-            if (!ws.table) return;
-            const t = tables[ws.table];
-            const i = t.c.indexOf(ws);
-            
-            // Accetta YES anche da player in attesa
-            if (cmd === "YES") {
-                ws.q.push(cmd);
-                console.log(`🔔 [${ws.table}] Player ${i + 1} responded YES`);
-            } else {
-                // Altri comandi solo da player attivi
-                if (i === -1 || t.h[i].length === 0) return;
-                ws.q.push(cmd);
-            }
+            ws.queue.push(command);
         }
     });
-
+    // Gestione della disconnessione del client
     ws.on("close", () => {
-        if (ws.table && tables[ws.table]) {
-            const t = tables[ws.table];
-            const i = t.c.indexOf(ws);
-            if (i !== -1) {
-                t.c.splice(i, 1);
-                t.h.splice(i, 1);
-                console.log(`❌ Player left ${ws.table} (${t.c.length} remaining)`);
-                if (t.c.length === 0) {
-                    delete tables[ws.table];
-                    console.log(`🗑️ Deleted ${ws.table}`);
-                }
+        const code = ws.tableCode;
+        if (!code || !tables[code]) return;
+        const table = tables[code];
+
+        function removePlayer(arr) {
+            var index = arr.indexOf(ws); // Restituisce -1 se non trovato
+            if (index !== -1) {
+                arr.splice(index, 1); // Rimuove il giocatore dall'array
             }
         }
+
+        removePlayer(table.players);
+        removePlayer(table.pendingPlayers);
+
+        if (table.players.length === 0 && table.pendingPlayers.length === 0)
+            delete tables[code];
     });
 });
 
-server.listen(PORT, () => {
-    console.log(`🌐 HTTP server listening on port ${PORT}`);
-    console.log(`💬 WebSocket server active`);
-});
-
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+// Quando avvio il server, stampo un messaggio di conferma
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
