@@ -4,151 +4,127 @@
 <head>
     <meta charset="UTF-8">
     <title>Blackjack</title>
-   <style>
-/* Palette moderna e font più leggibile */
-body {
-    margin: 0;
-    padding: 20px;
-    text-align: center;
-    background: linear-gradient(135deg, #1b5e20, #2e7d32);
-    color: #fff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+    <style>
+        /* Corpo della pagina con sfondo gradiente e font leggibile */
+        body {
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(135deg, #1b5e20, #2e7d32);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-/* Titolo elegante con ombra */
-h1 {
-    margin-bottom: 20px;
-    color: #ffeb3b;
-    font-size: 3em;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
-}
+        /* Titolo principale con effetto ombra */
+        h1 {
+            margin-bottom: 20px;
+            color: #ffeb3b;
+            font-size: 3em;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+        }
 
-/* Nascondere elementi */
-.hidden {
-    display: none;
-}
+        /* Nasconde gli elementi con questa classe */
+        .hidden { display: none; }
 
-/* Box moderno con ombra e bordi arrotondati */
-.box {
-    background: rgba(27, 94, 32, 0.95);
-    padding: 30px;
-    margin: 20px auto;
-    width: 420px;
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.box:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 25px rgba(0,0,0,0.5);
-}
+        /* Box principale con sfondo semitrasparente, bordi arrotondati e ombra */
+        .box {
+            background: rgba(27, 94, 32, 0.95);
+            padding: 30px;
+            margin: 20px auto;
+            width: 420px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
 
-/* Pulsanti moderni */
-button {
-    padding: 12px 28px;
-    border: none;
-    border-radius: 25px;
-    background: linear-gradient(145deg, #4caf50, #66bb6a);
-    color: #fff;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    margin: 8px;
-    box-shadow: 0 4px #388e3c;
-    transition: all 0.2s ease;
-}
-button:hover:not(:disabled) {
-    transform: translateY(2px);
-    box-shadow: 0 2px #388e3c;
-}
-button:disabled {
-    background: #888;
-    cursor: not-allowed;
-    box-shadow: none;
-}
+        /* Pulsanti principali con gradiente e ombra */
+        button {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(145deg, #4caf50, #66bb6a);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 8px;
+            box-shadow: 0 4px #388e3c;
+        }
 
-/* Pulsante leave rosso moderno */
-.leave {
-    background: linear-gradient(145deg, #d32f2f, #e53935);
-    box-shadow: 0 4px #9f2424;
-}
-.leave:hover:not(:disabled) {
-    transform: translateY(2px);
-    box-shadow: 0 2px #9f2424;
-}
+        /* Pulsante disabilitato */
+        button:disabled {
+            background: #888;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
 
-/* Container carte */
-.cards {
-    min-height: 80px;
-    margin: 15px 0;
-}
+        /* Pulsante LEAVE rosso */
+        .leave {
+            background: linear-gradient(145deg, #d32f2f, #e53935);
+            box-shadow: 0 4px #9f2424;
+        }
 
-/* Carte con effetto moderno e ombra */
-.card {
-    display: inline-block;
-    margin: 6px;
-    padding: 14px 18px;
-    background: #fff;
-    color: #000;
-    border-radius: 10px;
-    font-size: 22px;
-    font-weight: bold;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-}
+        /* Container per le carte */
+        .cards {
+            min-height: 80px;
+            margin: 15px 0;
+        }
 
-/* Carte coperte */
-.hidden-card {
-    background: linear-gradient(135deg, #1565c0, #1e88e5);
-    color: #1565c0;
-    position: relative;
-    font-weight: bold;
-}
-.hidden-card::after {
-    content: "♠";
-    color: rgba(255,255,255,0.8);
-    font-size: 1.5em;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
+        /* Stile delle carte */
+        .card {
+            display: inline-block;
+            margin: 6px;
+            padding: 14px 18px;
+            background: #fff;
+            color: #000;
+            border-radius: 10px;
+            font-size: 22px;
+            font-weight: bold;
+        }
 
-/* Input moderno */
-input {
-    padding: 10px;
-    font-size: 16px;
-    border-radius: 8px;
-    border: none;
-    text-transform: uppercase;
-    margin: 10px 0;
-    width: 70%;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
-    transition: box-shadow 0.3s ease;
-}
-input:focus {
-    outline: none;
-    box-shadow: 0 0 8px #ffeb3b;
-}
-</style>
+        /* Carte coperte */
+        .hidden-card {
+            background: linear-gradient(135deg, #1565c0, #1e88e5);
+            color: #1565c0;
+            position: relative;
+            font-weight: bold;
+        }
+
+        /* Simbolo sulla carta coperta */
+        .hidden-card::after {
+            content: "♠";
+            color: rgba(255,255,255,0.8);
+            font-size: 1.5em;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Input moderno */
+        input {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: none;
+            text-transform: uppercase;
+            margin: 10px 0;
+            width: 70%;
+        }
+    </style>
 </head>
 
 <body>
     <h1>🎰 Blackjack Live</h1>
 
-    <!-- Lobby -->
+    <!-- Lobby iniziale con creazione e join tavolo -->
     <div id="lobby" class="box">
         <button onclick="connectToServer('CREATE')">Create Table</button>
         <hr>
-        <input id="tableCodeInput" placeholder="Table code" maxlength="6" style="text-transform:uppercase;">
+        <input id="tableCodeInput" placeholder="Table code" maxlength="6">
         <button onclick="connectToServer('JOIN ' + tableCodeInput.value.toUpperCase())">Join Table</button>
     </div>
 
-    <!-- Game -->
+    <!-- Box del gioco nascosto inizialmente -->
     <div id="gameBox" class="box hidden">
         <div id="tableCodeDisplay"></div>
 
@@ -160,180 +136,199 @@ input:focus {
         <div id="playerHandValue"></div>
         <div id="playerCardsContainer" class="cards"></div>
 
+        <!-- Pulsanti azioni -->
         <button id="hitButton" onclick="sendPlayerCommand('HIT')" disabled>HIT</button>
         <button id="standButton" onclick="sendPlayerCommand('STAND')" disabled>STAND</button>
         <button id="playAgainButton" onclick="sendPlayerCommand('YES')" disabled>PLAY AGAIN</button>
-
         <br>
         <button class="leave" onclick="leaveTable()">LEAVE</button>
     </div>
 
     <script>
+        // Shortcut per ottenere elementi per ID
         const $ = id => document.getElementById(id);
 
+        // Elementi principali
         const lobbyBox = $("lobby");
         const gameBox = $("gameBox");
-
         const playerCardsContainer = $("playerCardsContainer");
         const dealerCardsContainer = $("dealerCardsContainer");
-
         const playerHandValue = $("playerHandValue");
         const dealerHandValue = $("dealerHandValue");
-
         const hitButton = $("hitButton");
         const standButton = $("standButton");
         const playAgainButton = $("playAgainButton");
 
+        // Stato del gioco
         let websocket;
         let playerCards = [];
         let dealerCards = [];
 
+        // Connessione al server WebSocket
         function connectToServer(message) {
             const protocol = location.protocol === "https:" ? "wss" : "ws";
             websocket = new WebSocket(`${protocol}://${location.host}`);
 
+            // Invia subito il comando iniziale (CREATE o JOIN)
             websocket.onopen = () => websocket.send(message);
 
+            // Gestione dei messaggi ricevuti dal server
             websocket.onmessage = async event => {
                 const [command, data] = event.data.split(" ", 2);
 
-                switch (command) {
+                if (command === "TABLE_CREATED" || command === "TABLE_JOINED") {
+                    // Mostra il box del gioco e nasconde la lobby
+                    lobbyBox.classList.add("hidden");
+                    gameBox.classList.remove("hidden");
+                    $("tableCodeDisplay").textContent = "Code: " + data;
+                    toggleButtons(false, false, false);
 
-                    case "TABLE_CREATED":
-                    case "TABLE_JOINED":
-                        lobbyBox.classList.add("hidden");
-                        gameBox.classList.remove("hidden");
-                        $("tableCodeDisplay").textContent = "Code: " + data;
-                        // Ensure all action buttons are disabled when joining a table
-                        toggleButtons(false, false, false);
-                        break;
+                } else if (command === "TABLE_NOT_FOUND") {
+                    alert("Table not found");
 
-                    case "TABLE_NOT_FOUND": alert("Table not found"); break;
-                    case "TABLE_FULL": alert("Table full"); break;
+                } else if (command === "TABLE_FULL") {
+                    alert("Table full");
 
-                    case "DEALER_RESET":
-                        dealerCards = playerCards = [];
-                        dealerCardsContainer.innerHTML = playerCardsContainer.innerHTML = "";
-                        dealerHandValue.textContent = playerHandValue.textContent = "";
-                        // Reset buttons at the start of a new hand
-                        toggleButtons(false, false, false);
-                        break;
+                } else if (command === "DEALER_RESET") {
+                    // Reset carte e valori
+                    dealerCards = playerCards = [];
+                    dealerCardsContainer.innerHTML = playerCardsContainer.innerHTML = "";
+                    dealerHandValue.textContent = playerHandValue.textContent = "";
+                    toggleButtons(false, false, false);
 
-                    case "DEALER_INIT": {
-                        const [firstCard, secondCard] = data.split(" ");
-                        dealerCards = [firstCard, secondCard];
-                        dealerCardsContainer.innerHTML = "";
-                        addCardToContainer(dealerCardsContainer, "🂠", true);
-                        await sleep(300);
-                        addCardToContainer(dealerCardsContainer, secondCard);
-                        dealerHandValue.textContent = "Showing: " + getCardValue(secondCard);
-                        break;
-                    }
+                } else if (command === "DEALER_INIT") {
+                    // Mostra la seconda carta del dealer, la prima nascosta
+                    const cards = data.split(" ");
+                    dealerCards = cards;
+                    dealerCardsContainer.innerHTML = "";
+                    addCardToContainer(dealerCardsContainer, "🂠", true);
+                    await sleep(300);
+                    addCardToContainer(dealerCardsContainer, cards[1]);
+                    dealerHandValue.textContent = "Showing: " + getCardValue(cards[1]);
 
-                    case "CARDS":
-                        playerCards = data.split(",");
-                        renderCards(playerCardsContainer, playerCards);
-                        updateHandValue(playerHandValue, playerCards);
-                        break;
+                } else if (command === "CARDS") {
+                    // Mostra le carte del giocatore
+                    playerCards = data.split(",");
+                    renderCards(playerCardsContainer, playerCards);
+                    updateHandValue(playerHandValue, playerCards);
 
-                    case "YOUR_TURN":
-                        toggleButtons(true, true, false);
-                        break;
+                } else if (command === "YOUR_TURN") {
+                    // Abilita i pulsanti HIT e STAND
+                    toggleButtons(true, true, false);
 
-                    case "DEALER_REVEAL":
-                        dealerCardsContainer.children[0].classList.remove("hidden-card");
-                        dealerCardsContainer.children[0].textContent = dealerCards[0];
-                        updateHandValue(dealerHandValue, dealerCards);
-                        break;
+                } else if (command === "DEALER_REVEAL") {
+                    // Mostra la carta coperta del dealer
+                    dealerCardsContainer.children[0].classList.remove("hidden-card");
+                    dealerCardsContainer.children[0].textContent = dealerCards[0];
+                    updateHandValue(dealerHandValue, dealerCards);
 
-                    case "DEALER_CARD":
-                        dealerCards.push(data);
-                        addCardToContainer(dealerCardsContainer, data);
-                        updateHandValue(dealerHandValue, dealerCards);
-                        break;
+                } else if (command === "DEALER_CARD") {
+                    // Aggiunge carta del dealer
+                    dealerCards.push(data);
+                    addCardToContainer(dealerCardsContainer, data);
+                    updateHandValue(dealerHandValue, dealerCards);
 
-                    case "RESULT": {
-                        toggleButtons(false, false, false);
-                        const parts = event.data.split(" ");
-                        const result = parts[1]; // WIN, LOSE, or PUSH
-                        const dealerCardsList = parts[3]?.split(",") || [];
-                        dealerCards = dealerCardsList;
-                        renderCards(dealerCardsContainer, dealerCards);
-                        updateHandValue(dealerHandValue, dealerCards);
-                        
-                        // Display result to player
-                        const resultMessage = result === "WIN" ? "🎉 HAI VINTO!" : 
-                                             result === "PUSH" ? "🤝 PAREGGIO" : 
-                                             "😞 HAI PERSO";
-                        playerHandValue.textContent += " - " + resultMessage;
-                        break;
-                    }
+                } else if (command === "RESULT") {
+                    // Mostra il risultato della mano
+                    toggleButtons(false, false, false);
+                    const parts = event.data.split(" ");
+                    const result = parts[1];
+                    dealerCards = parts[3]?.split(",") || [];
+                    renderCards(dealerCardsContainer, dealerCards);
+                    updateHandValue(dealerHandValue, dealerCards);
 
-                    case "PLAY_AGAIN?":
-                        toggleButtons(false, false, true);
-                        break;
+                    let resultMessage;
+                    if (result === "WIN") resultMessage = "🎉 HAI VINTO!";
+                    else if (result === "PUSH") resultMessage = "🤝 PAREGGIO";
+                    else resultMessage = "😞 HAI PERSO";
 
-                    case "PLAY_AGAIN_LOCK":
-                        toggleButtons(false, false, false);
-                        break;
+                    playerHandValue.textContent += " - " + resultMessage;
+
+                } else if (command === "PLAY_AGAIN?") {
+                    // Mostra il pulsante PLAY AGAIN
+                    toggleButtons(false, false, true);
+
+                } else if (command === "PLAY_AGAIN_LOCK") {
+                    // Disabilita pulsanti
+                    toggleButtons(false, false, false);
                 }
             };
         }
 
+        // Invia comando del giocatore al server
         function sendPlayerCommand(command) {
             if (!websocket) return;
             if (command === 'STAND') toggleButtons(false, false, false);
             websocket.send(command);
         }
 
+        // Abilita/disabilita i pulsanti
         function toggleButtons(enableHit, enableStand, enablePlayAgain) {
             hitButton.disabled = !enableHit;
             standButton.disabled = !enableStand;
             playAgainButton.disabled = !enablePlayAgain;
         }
 
+        // Torna alla lobby
         function leaveTable() {
-            websocket?.close();
+            if (websocket) websocket.close();
             gameBox.classList.add("hidden");
             lobbyBox.classList.remove("hidden");
         }
 
-        function addCardToContainer(container, card, hidden = false) {
+        // Aggiunge una carta a un container
+        function addCardToContainer(container, card, hidden) {
             const cardDiv = document.createElement("div");
-            cardDiv.className = "card" + (hidden ? " hidden-card" : "");
+            cardDiv.className = "card";
+            if (hidden) cardDiv.classList.add("hidden-card");
             cardDiv.textContent = card;
             container.appendChild(cardDiv);
         }
 
+        // Mostra tutte le carte di un array
         function renderCards(container, cards) {
             container.innerHTML = "";
-            cards.forEach(card => addCardToContainer(container, card));
+            for (let i = 0; i < cards.length; i++) {
+                addCardToContainer(container, cards[i]);
+            }
         }
 
-        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        // Funzione di pausa
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+        // Restituisce il valore numerico della carta
         function getCardValue(card) {
             const value = card.slice(0, -1);
-            return value === "A" ? 11 : ["J", "Q", "K"].includes(value) ? 10 : +value;
+            if (value === "A") return 11;
+            if (value === "J" || value === "Q" || value === "K") return 10;
+            return +value;
         }
 
+        // Calcola il valore della mano considerando gli assi
         function calculateHandValue(cards) {
-            let total = 0, acesCount = 0;
-            for (let card of cards) {
-                let value = getCardValue(card);
-                if (card[0] === "A") acesCount++;
-                total += value;
+            let total = 0;
+            let aces = 0;
+            for (let i = 0; i < cards.length; i++) {
+                let val = getCardValue(cards[i]);
+                if (cards[i][0] === "A") aces++;
+                total += val;
             }
-            while (total > 21 && acesCount--) total -= 10;
+            while (total > 21 && aces > 0) {
+                total -= 10;
+                aces--;
+            }
             return total;
         }
 
+        // Aggiorna il testo con il valore della mano
         function updateHandValue(element, cards) {
             const total = calculateHandValue(cards);
-            element.textContent = "Value: " + total + (total > 21 ? " BUST" : total === 21 ? " BLACKJACK" : "");
+            let text = "Value: " + total;
+            if (total > 21) text += " BUST";
+            else if (total === 21) text += " BLACKJACK";
+            element.textContent = text;
         }
     </script>
-
 </body>
 
 </html>
