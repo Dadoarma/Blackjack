@@ -233,6 +233,7 @@ async function runGameLoop(tableCode) {
     // Manda i risultati ai giocatori
     const dealerValue = getHandValue(table.dealer);
     for (let i = 0; i < table.players.length; i++) {
+        const player = table.players[i];
         const playerValue = getHandValue(table.hands[i]);
         let result;
 
@@ -253,14 +254,14 @@ async function runGameLoop(tableCode) {
 
     // Ricomincia il ciclo di gioco se ci sono ancora giocatori attivi
     const remainingPlayers = [];
-    for (let player of table.players) {
+    // Itero sui giocatori attivi per chiedere se vogliono giocare di nuovo
+    for (let player of table.players.slice()) { // Uso slice() per creare una copia dell'array originale
         if (!player || player.readyState !== WebSocket.OPEN) continue;
         broadcastMessage(table, "PLAY_AGAIN_LOCK");
         sendMessage(player, "PLAY_AGAIN?");
 
         const response = await waitForPlayerResponse(player);
         if (response === "YES") remainingPlayers.push(player);
-        else try { player.close(); } catch { } // Disconnette il giocatore se possibile
         await wait(200);
     }
 
