@@ -125,6 +125,7 @@ function connect(msg) {
         }
         else if (cmd === "DEALER_INIT") {
             const parts = payload ? payload.split(" ") : [];
+            console.log("DEALER_INIT received:", parts);
             dcards.innerHTML = "";
             dc = [];
 
@@ -132,15 +133,20 @@ function connect(msg) {
             // parts[1] = carta VISIBILE (la mostriamo)
             
             if (parts[0]) {
+                console.log("Adding hidden card:", parts[0]);
                 // Prima carta: COPERTA - mostriamo solo il retro
                 dc.push(parts[0]); // salviamo per dopo
-                add(dcards, "HIDDEN", true); // carta blu con placeholder
+                add(dcards, "X", true); // carta blu con X come placeholder
             }
             if (parts[1]) {
+                console.log("Adding visible card:", parts[1]);
                 // Seconda carta: VISIBILE
                 dc.push(parts[1]);
-                add(dcards, parts[1]); // carta bianca con valore
+                add(dcards, parts[1], false); // carta bianca con valore
             }
+
+            console.log("DC array:", dc);
+            console.log("Cards in DOM:", dcards.children.length);
 
             // Mostra solo il valore della carta visibile (la seconda)
             const visibleValue = parts[1] ? val(parts[1]) : 0;
@@ -220,12 +226,14 @@ function btns(h, s, a) {
 }
 
 function add(el, txt, hid) {
+    console.log("add() called - txt:", txt, "hidden:", hid);
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
-    // Per carte coperte non mostrare il testo, solo il simbolo dal CSS
+    // Per carte coperte lasciamo vuoto, il CSS mostrerà ♠
+    // Per carte visibili mostriamo il valore
     d.textContent = hid ? "" : txt;
-    // Per le carte coperte, il ::before del CSS mostrerà il simbolo ♠
     el.appendChild(d);
+    console.log("Card added. Total cards:", el.children.length);
 }
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
