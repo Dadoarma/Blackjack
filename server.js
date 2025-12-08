@@ -134,10 +134,10 @@ async function game(code) {
     all(t, "DEALER_RESET");
     await wait(300);
 
-    // 2. Distribuzione iniziale dealer
-    // Prima carta: coperta (hidden), Seconda carta: visibile
+    // 2. Distribuzione iniziale dealer: prima carta coperta, seconda visibile
     const dealer = [draw(t), draw(t)];
-    all(t, `DEALER_INIT ${fmt(dealer[1])} ${fmt(dealer[0])}`);
+    // Inviamo: carta_coperta carta_visibile
+    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
     await wait(800);
 
     // 3. Distribuzione iniziale giocatori (solo chi ha mano vuota non è in attesa)

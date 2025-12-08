@@ -128,22 +128,22 @@ function connect(msg) {
             dcards.innerHTML = "";
             dc = [];
 
-            // parts[0] = carta visibile
-            // parts[1] = carta coperta
+            // parts[0] = carta COPERTA (non la mostriamo)
+            // parts[1] = carta VISIBILE (la mostriamo)
             
             if (parts[0]) {
-                // prima carta visibile
-                add(dcards, parts[0]);
-                dc.push(parts[0]);
+                // Prima carta: COPERTA - mostriamo solo il retro
+                dc.push(parts[0]); // salviamo per dopo
+                add(dcards, "", true); // carta blu senza testo
             }
             if (parts[1]) {
-                // seconda carta coperta
-                add(dcards, "?", true);
+                // Seconda carta: VISIBILE
                 dc.push(parts[1]);
+                add(dcards, parts[1]); // carta bianca con valore
             }
 
-            // mostra valore solo della prima carta (visibile)
-            const visibleValue = parts[0] ? val(parts[0]) : 0;
+            // Mostra solo il valore della carta visibile (la seconda)
+            const visibleValue = parts[1] ? val(parts[1]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         }
         else if (cmd === "YOUR_TURN") {
@@ -152,9 +152,10 @@ function connect(msg) {
             btns(true, true, false);
         }
         else if (cmd === "DEALER_REVEAL") {
-            if (dcards.children[1]) {
-                dcards.children[1].textContent = dc[1] || "?";
-                dcards.children[1].classList.remove("hidden");
+            // Rivela la prima carta (quella coperta in posizione 0)
+            if (dcards.children[0]) {
+                dcards.children[0].textContent = dc[0] || "?";
+                dcards.children[0].classList.remove("hidden");
             }
             update(dval, dc);
             await wait(500);
