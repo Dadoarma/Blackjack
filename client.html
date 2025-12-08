@@ -756,7 +756,7 @@
         // Invia comando del giocatore al server
         function sendPlayerCommand(command) {
             if (!websocket) return;
-            if (command === 'STAND') toggleButtons(false, false, false);
+            if (command === 'STAND') toggleButtons(false, false, false); // Disabilita subito i pulsanti
             websocket.send(command);
         }
 
@@ -777,16 +777,17 @@
 
         // Aggiunge una carta a un container
         function addCardToContainer(container, card, hidden) {
+            // Crea l'elemento carta
             const cardDiv = document.createElement("div");
             cardDiv.className = "card";
-            if (hidden) cardDiv.classList.add("hidden-card");
+            if (hidden) cardDiv.classList.add("hidden-card"); // Carta coperta
             cardDiv.textContent = card;
-            container.appendChild(cardDiv);
+            container.appendChild(cardDiv); // Aggiunge al container
         }
 
         // Mostra tutte le carte di un array
         function renderCards(container, cards) {
-            container.innerHTML = "";
+            container.innerHTML = ""; // Pulisce il container
             for (let i = 0; i < cards.length; i++) {
                 addCardToContainer(container, cards[i]);
             }
@@ -807,9 +808,9 @@
         function calculateHandValue(cards) {
             let total = 0;
             let aces = 0;
-            for (let i = 0; i < cards.length; i++) {
+            for (let i = 0; i < cards.length; i++) { 
                 let val = getCardValue(cards[i]);
-                if (cards[i][0] === "A") aces++;
+                if (cards[i][0] === "A") aces++; // Conta gli assi
                 total += val;
             }
             while (total > 21 && aces > 0) {
@@ -821,7 +822,7 @@
 
         // Aggiorna il testo con il valore della mano
         function updateHandValue(element, cards) {
-            const total = calculateHandValue(cards);
+            const total = calculateHandValue(cards); // Calcola il totale
             let text = "Value: " + total;
             if (total > 21) text += " BUST";
             else if (total === 21) text += " BLACKJACK";
