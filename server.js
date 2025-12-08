@@ -3,11 +3,9 @@ const http = require('http');
 const WebSocket = require("ws");
 const path = require('path');
 
-// Setup Express e HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Serve client.html e assets dalla radice
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'client.html'));
@@ -17,7 +15,7 @@ const wss = new WebSocket.Server({ server });
 
 const tables = {};
 const MAX_PLAYERS = 5;
-const CARDS = Array.from({length: 13}, (_, i) => i === 0 ? 'A' : i < 9 ? String(i + 1) : ['10', 'J', 'Q', 'K'][i - 9]);
+const CARDS = Array.from({ length: 13 }, (_, i) => i === 0 ? 'A' : i < 9 ? String(i + 1) : ['10', 'J', 'Q', 'K'][i - 9]);
 const SUITS = ["♥", "♦", "♣", "♠"];
 const PORT = process.env.PORT || 8080;
 
@@ -84,16 +82,29 @@ function resp(client) {
     });
 }
 
+// --- GESTIONE CLIENT CHE SI UNISCONO ---
+
 function join(ws, code) {
     ws.table = code;
     const t = tables[code];
-    t.c.push(ws);
-    t.h.push([]);
-    if (!t.run && t.c.length > 0) {
-        t.run = true;
-        setTimeout(() => game(code), 1000);
+
+    if (t.run) {
+        // Partita in corso: nuovo client in modalità "attesa"
+        send(ws, "PLAY_AGAIN_LOCK");
+        t.c.push(ws);
+        t.h.push([]); // mano vuota, parteciperà al prossimo round
+        console.log(`👀 Player joined ${code} in waiting mode`);
+    } else {
+        t.c.push(ws);
+        t.h.push([]);
+        if (!t.run && t.c.length > 0) {
+            t.run = true;
+            setTimeout(() => game(code), 1000);
+        }
     }
 }
+
+// --- LOOP DI GIOCO ---
 
 async function game(code) {
     const t = tables[code];
@@ -102,29 +113,30 @@ async function game(code) {
 
     console.log(`\n🎮 [${code}] Game start`);
 
-    // 1. Setup Mazzo e Reset
+    // 1. Setup mazzo e reset
     t.d = [];
     for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
     shuffle(t.d);
-    t.h = t.c.map(() => []);
+    t.h = t.c.map(c => c.q.length > 0 || c.table === code ? [] : []); // solo vecchi client avranno mano vera
     all(t, "DEALER_RESET");
     await wait(300);
 
-    // 2. Distribuzione Iniziale (Dealer)
+    // 2. Distribuzione iniziale dealer
     const dealer = [draw(t), draw(t)];
     all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
     await wait(800);
 
-    // 3. Distribuzione Iniziale (Giocatori)
+    // 3. Distribuzione iniziale giocatori (solo chi ha mano vuota non è in attesa)
     for (let i = 0; i < t.c.length; i++) {
+        if (t.h[i].length !== 0) continue; // skip player entrato in ritardo
         t.h[i] = [draw(t), draw(t)];
         send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
     }
     await wait(500);
 
-    // 4. Turno dei Giocatori
+    // 4. Turno giocatori
     for (let i = 0; i < t.c.length; i++) {
-        if (!t.c[i]) continue;
+        if (!t.h[i] || t.h[i].length === 0) continue; // player in attesa
         console.log(`🎯 [${code}] P${i + 1} turn`);
         while (val(t.h[i]) < 21) {
             send(t.c[i], "YOUR_TURN");
@@ -137,7 +149,7 @@ async function game(code) {
         }
     }
 
-    // 5. Turno del Banco
+    // 5. Turno dealer
     const anyAlive = t.h.some(h => val(h) <= 21);
     if (anyAlive) {
         console.log(`🎲 [${code}] Dealer turn`);
@@ -154,10 +166,11 @@ async function game(code) {
         await wait(1000);
     }
 
-    // 6. Calcolo Risultati
+    // 6. Calcolo risultati
     const dv = val(dealer);
     console.log(`🏁 [${code}] Dealer: ${dv}`);
     for (let i = 0; i < t.c.length; i++) {
+        if (!t.h[i] || t.h[i].length === 0) continue; // player in attesa
         const p = val(t.h[i]);
         let res;
         if (p > 21) res = "LOSE";
@@ -215,6 +228,10 @@ wss.on("connection", ws => {
                 console.log(`✅ Joined ${code} (${tables[code].c.length}/${MAX_PLAYERS})`);
             }
         } else {
+            if (!ws.table) return;
+            const t = tables[ws.table];
+            const i = t.c.indexOf(ws);
+            if (i === -1 || t.h[i].length === 0) return; // ignora comandi dei nuovi player in attesa
             ws.q.push(cmd);
         }
     });
@@ -241,5 +258,4 @@ server.listen(PORT, () => {
     console.log(`💬 WebSocket server active`);
 });
 
-// Alias per Promise basata su timeout
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
