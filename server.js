@@ -74,10 +74,20 @@ function resp(client) {
     return new Promise(r => {
         let time = 0;
         const iv = setInterval(() => {
-            if (!client || client.readyState !== 1) { clearInterval(iv); r("STAND"); return; }
+            if (!client || client.readyState !== 1) { 
+                clearInterval(iv); 
+                r("STAND"); 
+                return; 
+            }
             time += 200;
-            if (client.q.length) { clearInterval(iv); r(client.q.shift()); }
-            else if (time >= 30000) { clearInterval(iv); r("STAND"); }
+            if (client.q.length) { 
+                clearInterval(iv); 
+                r(client.q.shift()); 
+            }
+            else if (time >= 30000) { 
+                clearInterval(iv); 
+                r("STAND"); 
+            }
         }, 200);
     });
 }
@@ -115,7 +125,7 @@ async function game(code) {
     if (!t) return;
     t.code = code;
 
-    console.log(`\n🎮 [${code}] Game start`);
+    console.log(`\n🎮 [${code}] Game start with ${t.c.length} players`);
 
     // 1. Setup mazzo e reset
     t.d = [];
@@ -186,23 +196,36 @@ async function game(code) {
     await wait(1000);
 
     // 7. Replay: gestione parallela per evitare blocco
+    console.log(`⏳ [${code}] Asking all players for replay...`);
     all(t, "PLAY_AGAIN?");
+    
+    // Svuota le code prima di aspettare le risposte
+    t.c.forEach(ws => ws.q = []);
+    
     const responses = await Promise.all(t.c.map(ws => resp(ws)));
+    console.log(`📊 [${code}] Responses:`, responses);
 
     const nextClients = [];
     for (let i = 0; i < t.c.length; i++) {
-        if (responses[i] === "YES") nextClients.push(t.c[i]);
-        else t.c[i].close();
+        if (responses[i] === "YES") {
+            nextClients.push(t.c[i]);
+            console.log(`✅ [${code}] Player ${i + 1} wants to replay`);
+        } else {
+            console.log(`❌ [${code}] Player ${i + 1} left`);
+            t.c[i].close();
+        }
     }
 
     t.c = nextClients;
     t.h = nextClients.map(() => []);
+    
     if (t.c.length > 0) {
-        console.log(`♻️ [${code}] Next round`);
+        console.log(`♻️ [${code}] Next round with ${t.c.length} players`);
         await wait(2000);
         game(code);
     } else {
         console.log(`⏸️ [${code}] Empty, deleting table`);
+        t.run = false;
         delete tables[code];
     }
 }
@@ -236,8 +259,16 @@ wss.on("connection", ws => {
             if (!ws.table) return;
             const t = tables[ws.table];
             const i = t.c.indexOf(ws);
-            if (i === -1 || t.h[i].length === 0) return; // ignora comandi dei nuovi player in attesa
-            ws.q.push(cmd);
+            
+            // Accetta YES anche da player in attesa
+            if (cmd === "YES") {
+                ws.q.push(cmd);
+                console.log(`🔔 [${ws.table}] Player ${i + 1} responded YES`);
+            } else {
+                // Altri comandi solo da player attivi
+                if (i === -1 || t.h[i].length === 0) return;
+                ws.q.push(cmd);
+            }
         }
     });
 
