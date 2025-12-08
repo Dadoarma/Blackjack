@@ -82,6 +82,10 @@ function resp(client) {
     });
 }
 
+function getActivePlayers(t) {
+    return t.h.map((h, i) => h.length > 0 ? i : -1).filter(i => i !== -1);
+}
+
 // --- GESTIONE CLIENT CHE SI UNISCONO ---
 
 function join(ws, code) {
@@ -134,27 +138,27 @@ async function game(code) {
     await wait(500);
 
     // 4. Turno giocatori
-    for (let i = 0; i < t.c.length; i++) {
-        if (!t.h[i] || t.h[i].length === 0) continue; // player in attesa
-        console.log(`🎯 [${code}] P${i + 1} turn`);
-        while (val(t.h[i]) < 21) {
-            send(t.c[i], "YOUR_TURN");
-            const response = await resp(t.c[i]);
+    const activeIndices = getActivePlayers(t);
+    for (let idx of activeIndices) {
+        console.log(`🎯 [${code}] P${idx + 1} turn`);
+        while (val(t.h[idx]) < 21) {
+            send(t.c[idx], "YOUR_TURN");
+            const response = await resp(t.c[idx]);
             if (response === "HIT") {
-                t.h[i].push(draw(t));
-                send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
-                if (val(t.h[i]) > 21) break;
+                t.h[idx].push(draw(t));
+                send(t.c[idx], `CARDS ${t.h[idx].map(fmt).join(",")}`);
+                if (val(t.h[idx]) > 21) break;
             } else break;
         }
     }
 
     // 5. Turno dealer
-    const anyAlive = t.h.some(h => val(h) <= 21);
+    const anyAlive = activeIndices.some(i => val(t.h[i]) <= 21);
     if (anyAlive) {
         console.log(`🎲 [${code}] Dealer turn`);
         all(t, "DEALER_REVEAL");
         await wait(1000);
-        while (val(dealer) < 17) {
+        while (val(dealer) < 17 && activeIndices.some(i => val(t.h[i]) <= 21)) {
             await wait(800);
             dealer.push(draw(t));
             all(t, `DEALER_CARD ${fmt(dealer[dealer.length - 1])}`);
@@ -165,11 +169,10 @@ async function game(code) {
         await wait(1000);
     }
 
-    // 6. Calcolo risultati
+    // 6. Calcolo risultati (solo per attivi)
     const dv = val(dealer);
     console.log(`🏁 [${code}] Dealer: ${dv}`);
-    for (let i = 0; i < t.c.length; i++) {
-        if (!t.h[i] || t.h[i].length === 0) continue; // player in attesa
+    for (let i of activeIndices) {
         const p = val(t.h[i]);
         let res;
         if (p > 21) res = "LOSE";
