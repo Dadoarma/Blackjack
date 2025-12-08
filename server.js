@@ -1,11 +1,13 @@
 const express = require('express');
 const http = require('http');
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 const path = require('path');
 
+// Setup Express e HTTP server
 const app = express();
 const server = http.createServer(app);
 
+// Serve client.html e assets dalla radice
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'client.html'));
@@ -15,516 +17,357 @@ const wss = new WebSocket.Server({ server });
 
 const tables = {};
 const MAX_PLAYERS = 5;
-const CARDS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUITS = ['♥', '♦', '♣', '♠'];
+const CARDS = Array.from({length: 13}, (_, i) =>
+    i === 0 ? 'A' : i < 9 ? String(i + 1) : ['10', 'J', 'Q', 'K'][i - 9]);
+const SUITS = ["♥", "♦", "♣", "♠"];
 const PORT = process.env.PORT || 8080;
 
-class Player {
-    constructor(ws, name) {
-        this.ws = ws;
-        this.name = name;
-        this.id = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.hand = [];
-        this.status = 'waiting';
-        this.chips = 1000;
-        this.bet = 100;
-        this.hasActed = false;
+console.log(`🎰 Server starting on port ${PORT}...`);
+
+// --- UTILITY E LOGICA DI GIOCO ---
+
+function genCode() {
+    let c;
+    do c = Math.random().toString(36).substr(2, 6).toUpperCase();
+    while (tables[c]);
+    return c;
+}
+
+function val(h) {
+    let s = 0, a = 0;
+    for (const { v } of h) {
+        if (v === 1) { s += 11; a++; }
+        else s += v >= 11 ? 10 : v;
+    }
+    while (s > 21 && a > 0) { s -= 10; a--; }
+    return s;
+}
+
+function fmt(c) {
+    const v = CARDS[c.v - 1];
+    return `${v}${c.s}`;
+}
+
+function shuffle(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.random() * (i + 1) | 0;
+        [deck[i], deck[j]] = [deck[j], deck[i]];
     }
 }
 
-class Table {
-    constructor(code) {
-        this.code = code;
-        this.players = new Map();
-        this.dealerHand = [];
-        this.deck = [];
-        this.gameState = 'waiting'; // waiting, playing, results
-        this.currentPlayerIndex = -1;
-        this.initializeDeck();
+function draw(t) {
+    if (!t.d.length) {
+        console.log(`⚠️  [${t.code}] Reshuffle`);
+        t.d = [];
+        for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
+        shuffle(t.d);
     }
-    
-    initializeDeck() {
-        this.deck = [];
-        for (const suit of SUITS) {
-            for (const value of CARDS) {
-                this.deck.push({ value, suit });
+    return t.d.shift();
+}
+
+function send(client, m) {
+    if (client?.readyState === 1) client.send(m);
+}
+
+function all(t, m) {
+    t.c.forEach(c => send(c, m));
+}
+
+/**
+ * resp(client)
+ * - attende fino a 30s una risposta nella coda client.q
+ * - se il client è chiuso o non risponde risolve con "STAND"
+ * - rimuove automaticamente eventuali comandi non validi (timeout safe)
+ */
+function resp(client) {
+    return new Promise(r => {
+        if (!client || client.readyState !== 1) return r("STAND");
+        let time = 0;
+        const iv = setInterval(() => {
+            // client might be closed while waiting
+            if (!client || client.readyState !== 1) {
+                clearInterval(iv);
+                return r("STAND");
             }
-        }
-        this.shuffleDeck();
-    }
-    
-    shuffleDeck() {
-        for (let i = this.deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
-        }
-    }
-    
-    addPlayer(ws, name) {
-        if (this.players.size >= MAX_PLAYERS) {
-            return { success: false, reason: 'Table is full' };
-        }
-        
-        const player = new Player(ws, name);
-        this.players.set(player.id, player);
-        return { success: true, player };
-    }
-    
-    removePlayer(playerId) {
-        const player = this.players.get(playerId);
-        if (player) {
-            this.players.delete(playerId);
-            this.broadcastPlayerList();
-            return true;
-        }
-        return false;
-    }
-    
-    broadcast(message, excludePlayerId = null) {
-        this.players.forEach((player, id) => {
-            if (id !== excludePlayerId && player.ws.readyState === WebSocket.OPEN) {
-                player.ws.send(message);
+            if (client.q && client.q.length) {
+                clearInterval(iv);
+                r(client.q.shift());
+            } else if (time >= 30000) {
+                clearInterval(iv);
+                r("STAND");
             }
-        });
+            time += 200;
+        }, 200);
+    });
+}
+
+/**
+ * join(ws, code)
+ * - se la partita è in corso (t.run === true) il client va in t.pending
+ * - altrimenti entra in t.c e prende parte alla partita corrente
+ */
+function join(ws, code) {
+    ws.table = code;
+    const t = tables[code];
+
+    // Reset coda messaggi per sicurezza
+    ws.q = ws.q || [];
+
+    if (!t.run) {
+        t.c.push(ws);
+        t.h.push([]);
+        send(ws, `TABLE_JOINED ${code}`);
+    } else {
+        // Partita in corso: aggiungilo come pending (partecipante per la prossima mano)
+        t.pending.push(ws);
+        t.pendingHands.push([]); // placeholder
+        send(ws, `TABLE_JOINED ${code}`); // mostra UI al client
+        send(ws, `JOINED_WAIT`); // opzionale: messaggio informativo
+        console.log(`➕ [${code}] Player joined as pending (will start next round)`);
     }
-    
-    sendToPlayer(playerId, message) {
-        const player = this.players.get(playerId);
-        if (player && player.ws.readyState === WebSocket.OPEN) {
-            player.ws.send(message);
+
+    // Se è il primo a unirsi e la partita non sta correndo, avvia il loop
+    if (!t.run && t.c.length > 0) {
+        t.run = true;
+        setTimeout(() => game(code), 1000);
+    }
+}
+
+/**
+ * game(code)
+ * - ciclo principale della partita
+ * - usa t.c come giocatori attivi per la mano
+ * - t.pending viene "assorbito" solo dopo la fase di Replay (prima della prossima mano)
+ */
+async function game(code) {
+    const t = tables[code];
+    if (!t) return;
+    t.code = code;
+
+    console.log(`\n🎮 [${code}] Game start`);
+
+    // Setup mazzo
+    t.d = [];
+    for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
+    shuffle(t.d);
+
+    // Reset mani e invia reset
+    t.h = t.c.map(() => []);
+    all(t, "DEALER_RESET");
+    await wait(300);
+
+    // Dealer iniziale
+    const dealer = [draw(t), draw(t)];
+    all(t, `DEALER_INIT ${fmt(dealer[0])} ${fmt(dealer[1])}`);
+    await wait(800);
+
+    // Distribuzione ai giocatori attivi (solo t.c)
+    for (let i = 0; i < t.c.length; i++) {
+        if (!t.c[i] || t.c[i].readyState !== 1) continue;
+        t.h[i] = [draw(t), draw(t)];
+        send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
+    }
+    await wait(500);
+
+    // Turni giocatori (solo t.c)
+    for (let i = 0; i < t.c.length; i++) {
+        if (!t.c[i] || t.c[i].readyState !== 1) continue;
+        console.log(`🎯 [${code}] P${i + 1} turn`);
+
+        while (val(t.h[i]) < 21) {
+            send(t.c[i], "YOUR_TURN");
+            const response = await resp(t.c[i]);
+
+            // Manages if client closed during its turn
+            if (!t.c[i] || t.c[i].readyState !== 1) break;
+
+            if (response === "HIT") {
+                t.h[i].push(draw(t));
+                send(t.c[i], `CARDS ${t.h[i].map(fmt).join(",")}`);
+                if (val(t.h[i]) > 21) break;
+            } else break; // STAND or timeout
         }
     }
-    
-    broadcastPlayerList() {
-        const playerList = {};
-        this.players.forEach((player, id) => {
-            playerList[id] = {
-                name: player.name,
-                status: player.status,
-                chips: player.chips,
-                bet: player.bet
-            };
-        });
-        
-        const message = `PLAYER_LIST ${JSON.stringify(playerList)}`;
-        this.broadcast(message);
-    }
-    
-    formatCard(card) {
-        return `${card.value}${card.suit}`;
-    }
-    
-    calculateHandValue(hand) {
-        let value = 0;
-        let aces = 0;
-        
-        for (const card of hand) {
-            if (card.value === 'A') {
-                value += 11;
-                aces++;
-            } else if (['J', 'Q', 'K'].includes(card.value)) {
-                value += 10;
-            } else if (card.value === '10') {
-                value += 10;
-            } else {
-                value += parseInt(card.value);
-            }
+
+    // Dealer turn se qualcuno non ha bust
+    const anyAlive = t.h.some(h => val(h) <= 21);
+
+    if (anyAlive) {
+        console.log(`🎲 [${code}] Dealer turn`);
+        all(t, "DEALER_REVEAL");
+        await wait(1000);
+
+        while (val(dealer) < 17) {
+            await wait(800);
+            dealer.push(draw(t));
+            all(t, `DEALER_CARD ${fmt(dealer[dealer.length - 1])}`);
         }
-        
-        while (value > 21 && aces > 0) {
-            value -= 10;
-            aces--;
-        }
-        
-        return value;
+    } else {
+        console.log(`💥 [${code}] All bust`);
+        all(t, "DEALER_REVEAL");
+        await wait(1000);
     }
-    
-    drawCard() {
-        if (this.deck.length < 10) {
-            this.initializeDeck();
-        }
-        return this.deck.pop();
+
+    // Calcolo risultati e invio
+    const dv = val(dealer);
+    console.log(`🏁 [${code}] Dealer: ${dv}`);
+
+    for (let i = 0; i < t.c.length; i++) {
+        const client = t.c[i];
+        if (!client || client.readyState !== 1) continue;
+        const p = val(t.h[i]);
+        let res;
+
+        if (p > 21) res = "LOSE";
+        else if (dv > 21) res = "WIN";
+        else if (p > dv) res = "WIN";
+        else if (p === dv) res = "PUSH";
+        else res = "LOSE";
+
+        send(client, `RESULT ${res} DEALER ${dealer.map(fmt).join(",")}`);
     }
-    
-    async startGame() {
-        if (this.players.size === 0) return;
-        
-        this.gameState = 'playing';
-        this.dealerHand = [];
-        
-        // Reset player states
-        this.players.forEach(player => {
-            player.hand = [];
-            player.status = 'playing';
-            player.hasActed = false;
-        });
-        
-        // Reset deck if needed
-        if (this.deck.length < 20) {
-            this.initializeDeck();
-        }
-        
-        // Broadcast game start
-        this.broadcast('GAME_START');
-        this.broadcast('DEALER_RESET');
-        
-        await this.sleep(500);
-        
-        // Deal initial cards
-        this.players.forEach(player => {
-            player.hand.push(this.drawCard());
-            player.hand.push(this.drawCard());
-            
-            const cardsStr = player.hand.map(card => this.formatCard(card)).join(',');
-            this.sendToPlayer(player.id, `CARDS ${cardsStr}`);
-            
-            // Check for blackjack
-            if (this.calculateHandValue(player.hand) === 21) {
-                player.status = 'blackjack';
-                this.broadcast(`PLAYER_ACTION ${player.id}:BLACKJACK`);
-            }
-        });
-        
-        // Deal dealer cards
-        this.dealerHand.push(this.drawCard());
-        this.dealerHand.push(this.drawCard());
-        
-        const dealerInitStr = `${this.formatCard(this.dealerHand[0])} ${this.formatCard(this.dealerHand[1])}`;
-        this.broadcast(`DEALER_INIT ${dealerInitStr}`);
-        
-        this.broadcastPlayerList();
-        await this.sleep(1000);
-        
-        // Start player turns
-        await this.playPlayerTurns();
-    }
-    
-    async playPlayerTurns() {
-        const playerIds = Array.from(this.players.keys());
-        
-        for (let i = 0; i < playerIds.length; i++) {
-            const playerId = playerIds[i];
-            const player = this.players.get(playerId);
-            
-            if (!player || player.status === 'blackjack' || player.status === 'bust') {
-                continue;
-            }
-            
-            this.currentPlayerIndex = i;
-            player.status = 'playing';
-            this.broadcastPlayerList();
-            this.broadcast(`PLAYER_ACTION ${playerId}:PLAYING`);
-            
-            // Send turn to player
-            this.sendToPlayer(playerId, 'YOUR_TURN');
-            
-            // Wait for player action
-            const action = await this.waitForPlayerAction(player);
-            
-            if (action === 'HIT') {
-                player.hand.push(this.drawCard());
-                const cardsStr = player.hand.map(card => this.formatCard(card)).join(',');
-                this.sendToPlayer(playerId, `CARDS ${cardsStr}`);
-                
-                if (this.calculateHandValue(player.hand) > 21) {
-                    player.status = 'bust';
-                    this.broadcast(`PLAYER_ACTION ${playerId}:BUST`);
-                }
-            } else if (action === 'STAND') {
-                player.status = 'standing';
-                this.broadcast(`PLAYER_ACTION ${playerId}:STAND`);
-            } else if (action === 'DOUBLE') {
-                if (player.chips >= player.bet * 2) {
-                    player.bet *= 2;
-                    player.hand.push(this.drawCard());
-                    const cardsStr = player.hand.map(card => this.formatCard(card)).join(',');
-                    this.sendToPlayer(playerId, `CARDS ${cardsStr}`);
-                    
-                    if (this.calculateHandValue(player.hand) > 21) {
-                        player.status = 'bust';
-                        this.broadcast(`PLAYER_ACTION ${playerId}:BUST`);
-                    } else {
-                        player.status = 'standing';
-                        this.broadcast(`PLAYER_ACTION ${playerId}:DOUBLE`);
-                    }
-                }
-            }
-            
-            player.hasActed = true;
-            this.broadcastPlayerList();
-            await this.sleep(1000);
-        }
-        
-        // All players have acted, dealer's turn
-        await this.playDealerTurn();
-    }
-    
-    async waitForPlayerAction(player) {
-        return new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-                cleanup();
-                resolve('STAND');
-            }, 30000);
-            
-            const onMessage = (message) => {
-                const msg = message.toString().trim();
-                if (['HIT', 'STAND', 'DOUBLE'].includes(msg)) {
-                    cleanup();
-                    resolve(msg);
-                }
-            };
-            
-            const cleanup = () => {
-                clearTimeout(timeout);
-                player.ws.removeListener('message', onMessage);
-            };
-            
-            player.ws.on('message', onMessage);
-        });
-    }
-    
-    async playDealerTurn() {
-        this.broadcast('DEALER_REVEAL');
-        await this.sleep(1000);
-        
-        // Check if any player is still in the game
-        const anyPlayerAlive = Array.from(this.players.values())
-            .some(p => p.status !== 'bust' && p.status !== 'blackjack');
-        
-        if (anyPlayerAlive) {
-            while (this.calculateHandValue(this.dealerHand) < 17) {
-                await this.sleep(800);
-                const newCard = this.drawCard();
-                this.dealerHand.push(newCard);
-                this.broadcast(`DEALER_CARD ${this.formatCard(newCard)}`);
-            }
-        }
-        
-        // Calculate and send results
-        await this.calculateResults();
-    }
-    
-    async calculateResults() {
-        const dealerValue = this.calculateHandValue(this.dealerHand);
-        const dealerCardsStr = this.dealerHand.map(card => this.formatCard(card)).join(',');
-        
-        this.players.forEach((player, playerId) => {
-            if (player.ws.readyState !== WebSocket.OPEN) return;
-            
-            const playerValue = this.calculateHandValue(player.hand);
-            let result = '';
-            
-            if (player.status === 'bust') {
-                result = 'LOSE';
-                player.chips -= player.bet;
-            } else if (player.status === 'blackjack') {
-                if (dealerValue === 21 && this.dealerHand.length === 2) {
-                    result = 'PUSH';
-                } else {
-                    result = 'BLACKJACK';
-                    player.chips += Math.floor(player.bet * 2.5);
-                }
-            } else if (dealerValue > 21) {
-                result = 'WIN';
-                player.chips += player.bet * 2;
-            } else if (playerValue > dealerValue) {
-                result = 'WIN';
-                player.chips += player.bet * 2;
-            } else if (playerValue === dealerValue) {
-                result = 'PUSH';
-                // Return bet
-                player.chips += player.bet;
-            } else {
-                result = 'LOSE';
-                player.chips -= player.bet;
-            }
-            
-            // Send result
-            this.sendToPlayer(playerId, `RESULT ${result} DEALER ${dealerCardsStr}`);
-            this.sendToPlayer(playerId, `CHIP_UPDATE ${player.chips}`);
-        });
-        
-        this.gameState = 'results';
-        this.broadcastPlayerList();
-        await this.sleep(2000);
-        
-        // Ask players if they want to play again
-        await this.askPlayAgain();
-    }
-    
-    async askPlayAgain() {
-        const playerIds = Array.from(this.players.keys());
-        const responses = new Map();
-        
-        // Ask each player
-        for (const playerId of playerIds) {
-            const player = this.players.get(playerId);
-            if (player && player.ws.readyState === WebSocket.OPEN) {
-                this.sendToPlayer(playerId, 'PLAY_AGAIN?');
-                responses.set(playerId, false);
-            }
-        }
-        
-        // Set timeout for responses
-        await this.sleep(30000);
-        
-        // Remove players who didn't respond
-        const playersToRemove = [];
-        this.players.forEach((player, playerId) => {
-            if (!responses.get(playerId)) {
-                playersToRemove.push(playerId);
+    await wait(1000);
+
+    // --- Replay sequenziale robusto ---
+    // Prima assorbo eventuali pending come "entranti futuri" solo dopo che tutti i PLAY_AGAIN sono stati chiusi
+    // Replay: invia sequenzialmente PLAY_AGAIN? agli attivi in t.c; gli altri sono LOCKed
+
+    const survivors = [];
+
+    for (let i = 0; i < t.c.length; i++) {
+        const player = t.c[i];
+
+        // Se il client è già scollegato, salta
+        if (!player || player.readyState !== 1) continue;
+
+        // Blocca tutti (comunicazione esplicita)
+        t.c.forEach((other) => {
+            if (other && other.readyState === 1) {
+                send(other, "PLAY_AGAIN_LOCK");
             }
         });
-        
-        playersToRemove.forEach(playerId => {
-            const player = this.players.get(playerId);
-            if (player) {
-                player.ws.close();
-                this.players.delete(playerId);
-            }
-        });
-        
-        // Lock play again button
-        this.broadcast('PLAY_AGAIN_LOCK');
-        
-        // If there are players left, start new game
-        if (this.players.size > 0) {
-            await this.sleep(2000);
-            this.startGame();
+
+        // Ora manda il prompt SOLO al giocatore corrente
+        send(player, "PLAY_AGAIN?");
+
+        // Attendi la sua risposta
+        const r = await resp(player);
+
+        // Se il client si è chiuso durante l'attesa -> consideralo come NO
+        if (!player || player.readyState !== 1) {
+            console.log(`❌ [${code}] Player disconnected during replay`);
+            continue;
+        }
+
+        if (r === "YES") {
+            survivors.push(player);
         } else {
-            delete tables[this.code];
-            console.log(`Table ${this.code} deleted (no players left)`);
+            // Chiusura volontaria o timeout -> lo rimuoviamo
+            try { player.close(); } catch (e) {}
         }
+
+        // Piccolo delay per consentire sincronia client
+        await wait(200);
     }
-    
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+
+    // Dopo che tutti i giocatori attivi hanno deciso, assorbo i pending come nuovi partecipanti
+    if (t.pending && t.pending.length) {
+        console.log(`➕ [${code}] Absorbing ${t.pending.length} pending players into next round`);
+        for (const p of t.pending) {
+            if (p && p.readyState === 1) {
+                survivors.push(p);
+            }
+        }
+        // Svuota pending
+        t.pending = [];
+        t.pendingHands = [];
+    }
+
+    // Riassegno t.c e mani
+    t.c = survivors;
+    t.h = t.c.map(() => []);
+
+    if (t.c.length > 0) {
+        console.log(`♻️  [${code}] Next round with ${t.c.length} players`);
+        await wait(2000);
+        // riparte il gioco
+        game(code);
+    } else {
+        console.log(`⏸️  [${code}] Empty, deleting table`);
+        delete tables[code];
     }
 }
 
-// WebSocket connection handling
-wss.on('connection', (ws) => {
-    console.log('🔗 New connection');
-    
-    ws.on('message', (message) => {
-        const msg = message.toString().trim();
-        const [command, ...args] = msg.split(' ');
-        const arg = args.join(' ');
-        
-        console.log('📩 Received:', command, args);
-        
-        if (command === 'CREATE') {
-            const playerName = arg || 'Player';
-            const code = generateTableCode();
-            const table = new Table(code);
-            tables[code] = table;
-            
-            const result = table.addPlayer(ws, playerName);
-            if (result.success) {
-                ws.playerId = result.player.id;
-                ws.tableCode = code;
-                
-                ws.send(`TABLE_CREATED ${code}`);
-                ws.send(`YOUR_ID ${result.player.id}`);
-                table.broadcastPlayerList();
-                
-                console.log(`✅ Table ${code} created by ${playerName}`);
-                
-                // Start game after short delay
-                setTimeout(() => {
-                    if (table.players.size > 0) {
-                        table.startGame();
-                    }
-                }, 2000);
+// --- GESTIONE WEBSOCKET ---
+
+wss.on("connection", ws => {
+    ws.q = []; // Coda messaggi
+    ws.table = null;
+
+    ws.on("message", m => {
+        const msg = m.toString().trim();
+        const [cmd, data] = msg.split(' ', 2);
+
+        if (cmd === "CREATE") {
+            const code = genCode();
+            tables[code] = { c: [], h: [], d: [], run: false, pending: [], pendingHands: [] };
+            join(ws, code);
+            send(ws, `TABLE_CREATED ${code}`);
+            console.log(`✅ Table ${code} created`);
+        } else if (cmd === "JOIN") {
+            const code = data;
+            if (!tables[code]) send(ws, "TABLE_NOT_FOUND");
+            else if ((tables[code].c.length + tables[code].pending.length) >= MAX_PLAYERS) send(ws, "TABLE_FULL");
+            else {
+                join(ws, code);
+                send(ws, `TABLE_JOINED ${code}`);
+                console.log(`✅ Joined ${code} (active ${tables[code].c.length} / pending ${tables[code].pending.length})`);
             }
-            
-        } else if (command === 'JOIN') {
-            const [code, ...nameParts] = args;
-            const playerName = nameParts.join(' ') || 'Player';
-            
-            if (!code || code.length !== 6) {
-                ws.send('ERROR Invalid table code');
-                return;
-            }
-            
-            const table = tables[code];
-            
-            if (!table) {
-                ws.send('TABLE_NOT_FOUND');
-                return;
-            }
-            
-            if (table.gameState !== 'waiting' && table.gameState !== 'results') {
-                ws.send('GAME_IN_PROGRESS');
-                return;
-            }
-            
-            const result = table.addPlayer(ws, playerName);
-            if (result.success) {
-                ws.playerId = result.player.id;
-                ws.tableCode = code;
-                
-                ws.send(`TABLE_JOINED ${code}`);
-                ws.send(`YOUR_ID ${result.player.id}`);
-                table.broadcastPlayerList();
-                
-                console.log(`✅ ${playerName} joined table ${code}`);
-                
-                // If game is waiting, start it
-                if (table.gameState === 'waiting' && table.players.size > 0) {
-                    setTimeout(() => {
-                        table.startGame();
-                    }, 2000);
-                }
-            } else {
-                ws.send('TABLE_FULL');
-            }
-            
-        } else if (['HIT', 'STAND', 'DOUBLE', 'YES', 'NO'].includes(command)) {
-            // Game actions are handled by the table's waitForPlayerAction
-            // This message will be caught by the event listener set up there
+        } else {
+            // Comandi di gioco (HIT, STAND, YES) vanno in coda
+            // Nota: i client che sono in pending potranno comunque inviare comandi, ma questi verranno
+            // considerati solo quando il client verrà assorbito in t.c (evitiamo che disturbino la mano corrente)
+            ws.q.push(cmd);
         }
     });
-    
-    ws.on('close', () => {
-        console.log('🔒 Connection closed');
-        
-        if (ws.tableCode && tables[ws.tableCode]) {
-            const table = tables[ws.tableCode];
-            if (table.players.has(ws.playerId)) {
-                table.players.delete(ws.playerId);
-                table.broadcastPlayerList();
-                console.log(`❌ Player left table ${ws.tableCode}`);
-                
-                // If no players left, clean up table
-                if (table.players.size === 0) {
-                    delete tables[ws.tableCode];
-                    console.log(`🗑️ Table ${ws.tableCode} deleted (no players left)`);
-                }
+
+    ws.on("close", () => {
+        // Rimuovi da table.c o table.pending se presenti
+        if (ws.table && tables[ws.table]) {
+            const t = tables[ws.table];
+
+            // rimuovi da active
+            const i = t.c.indexOf(ws);
+            if (i !== -1) {
+                t.c.splice(i, 1);
+                t.h.splice(i, 1);
+                console.log(`❌ Player left ${ws.table} (active). Remaining active: ${t.c.length}`);
+            }
+
+            // rimuovi da pending
+            const j = t.pending.indexOf(ws);
+            if (j !== -1) {
+                t.pending.splice(j, 1);
+                t.pendingHands.splice(j, 1);
+                console.log(`❌ Player left ${ws.table} (pending). Remaining pending: ${t.pending.length}`);
+            }
+
+            // Se il tavolo è vuoto -> cancellalo
+            if ((!t.c || t.c.length === 0) && (!t.pending || t.pending.length === 0)) {
+                delete tables[ws.table];
+                console.log(`🗑️  Deleted ${ws.table}`);
             }
         }
-    });
-    
-    ws.on('error', (error) => {
-        console.error('❌ WebSocket error:', error);
     });
 });
 
-function generateTableCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code;
-    do {
-        code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-    } while (tables[code]);
-    return code;
-}
-
+// Avvia il server HTTP (e WS)
 server.listen(PORT, () => {
-    console.log(`🎰 Blackjack Premium Server running on port ${PORT}`);
-    console.log(`🌐 HTTP: http://localhost:${PORT}`);
-    console.log(`💬 WebSocket: ws://localhost:${PORT}`);
-    console.log('\nReady for players!');
+    console.log(`🌐 HTTP server listening on port ${PORT}`);
+    console.log(`💬 WebSocket server active`);
 });
+
+// Alias per Promise basata su timeout
+function wait(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
