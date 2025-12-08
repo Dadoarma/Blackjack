@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 8080;
 
 console.log(`🎰 Server starting on port ${PORT}...`);
 
-// --- UTILITY E LOGICA DI GIOCO ---
+// --- UTILITY ---
 
 function genCode() {
     let c;
@@ -117,7 +117,6 @@ async function game(code) {
     t.d = [];
     for (const s of SUITS) for (let v = 1; v <= 13; v++) t.d.push({ v, s });
     shuffle(t.d);
-    t.h = t.c.map(c => c.q.length > 0 || c.table === code ? [] : []); // solo vecchi client avranno mano vera
     all(t, "DEALER_RESET");
     await wait(300);
 
@@ -183,14 +182,16 @@ async function game(code) {
 
     await wait(1000);
 
-    // 7. Replay
+    // 7. Replay: gestione parallela per evitare blocco
+    all(t, "PLAY_AGAIN?");
+    const responses = await Promise.all(t.c.map(ws => resp(ws)));
+
     const nextClients = [];
     for (let i = 0; i < t.c.length; i++) {
-        if (!t.c[i]) continue;
-        send(t.c[i], "PLAY_AGAIN?");
-        if (await resp(t.c[i]) === "YES") nextClients.push(t.c[i]);
+        if (responses[i] === "YES") nextClients.push(t.c[i]);
         else t.c[i].close();
     }
+
     t.c = nextClients;
     t.h = nextClients.map(() => []);
     if (t.c.length > 0) {
@@ -203,7 +204,8 @@ async function game(code) {
     }
 }
 
-// --- GESTIONE WEBSOCKET ---
+// --- WEBSOCKET ---
+
 wss.on("connection", ws => {
     ws.q = [];
     ws.table = null;
