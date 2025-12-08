@@ -126,10 +126,20 @@ function connect(msg) {
         else if (cmd === "DEALER_INIT") {
             const parts = payload ? payload.split(" ") : [];
             dcards.innerHTML = "";
-            dc = parts.slice();
-            add(dcards, "🂠", true);
-            await wait(400);
-            if (parts[1]) add(dcards, parts[1]);
+            dc = [];
+
+            if (parts[0]) {
+                // prima carta coperta
+                add(dcards, parts[0], true);
+                dc.push(parts[0]);
+            }
+            if (parts[1]) {
+                // seconda carta visibile
+                add(dcards, parts[1]);
+                dc.push(parts[1]);
+            }
+
+            // mostra valore solo della seconda carta
             const visibleValue = parts[1] ? val(parts[1]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         }
