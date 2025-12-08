@@ -45,6 +45,7 @@
 <body>
 <h1>🎰 Blackjack Live</h1>
 
+<!-- LOBBY -->
 <div id="lobby">
     <div class="lobby-box">
         <h2>Welcome!</h2>
@@ -55,40 +56,56 @@
     </div>
 </div>
 
+<!-- GAME -->
 <div id="game" class="hidden">
     <div id="table-code"></div>
     <div id="waiting" class="value hidden">⏳ Sei in attesa, parteciperai al prossimo round</div>
+
     <h3>Dealer</h3>
     <div id="dval" class="value"></div>
     <div id="dcards" class="cards"></div>
+
     <h3>Player</h3>
     <div id="pval" class="value"></div>
     <div id="pcards" class="cards"></div>
+
     <div id="status" class="value"></div>
+
     <div class="actions">
         <button id="hit" onclick="send('HIT')" disabled>HIT</button>
         <button id="stand" onclick="send('STAND')" disabled>STAND</button>
         <button id="again" onclick="send('YES')" disabled>PLAY AGAIN</button>
     </div>
+
     <button class="leave" onclick="leave()">LEAVE</button>
 </div>
 
 <script>
 /*
-  Client-side improvements and bug fixes:
-  - Revealing the dealer's hidden card is now robust: the client stores the hidden card in dataset
-    and removes the 'hidden' class BEFORE setting the visible text, so the card is actually visible.
-  - DEALER_REVEAL and RESULT both trigger reveal logic (RESULT can carry final dealer cards).
-  - Added websocket onclose/onerror handling to restore lobby.
-  - Minor robustness: handle missing payloads gracefully.
+  Macro-sezioni:
+   - Variabili e riferimenti UI
+   - WebSocket: connessione e gestione messaggi
+   - Funzioni di invio e controllo UI
+   - Gestione carte e utilità (add, reveal, valori)
+   - Funzioni ausiliarie
 */
 
-const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl, waiting] = 
-['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status', 'waiting'].map(id => document.getElementById(id));
+// -------------------------
+// Variabili e riferimenti UI (macro)
+// -------------------------
+// micro: selezione elementi DOM e stato locale
+const [lobby, game, pcards, dcards, pval, dval, hit, stand, again, statusEl, waiting] =
+  ['lobby', 'game', 'pcards', 'dcards', 'pval', 'dval', 'hit', 'stand', 'again', 'status', 'waiting'].map(id => document.getElementById(id));
 
-let ws, play = false, pc = [], dc = [];
+let ws = null;          // WebSocket
+let play = false;       // flag turno giocatore locale
+let pc = [], dc = [];   // memorie client: player cards (pc) e dealer cards (dc)
 
+// -------------------------
+// WebSocket: connessione e gestione messaggi (macro)
+// -------------------------
 function connect(msg) {
+    // micro: creerà ws, invierà CREATE/JOIN al server e gestirà i messaggi in arrivo
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     ws = new WebSocket(`${protocol}//${host}`);
@@ -99,27 +116,33 @@ function connect(msg) {
     };
 
     ws.onmessage = async e => {
+        // micro: parsing semplice (COMANDO <payload>)
         const raw = e.data;
-        // split into command and payload (payload may be undefined)
         const partsSplit = raw.split(' ');
         const cmd = partsSplit[0] || raw;
         const payload = raw.includes(' ') ? raw.slice(cmd.length + 1) : "";
 
-        console.log("WS recv:", {cmd, payload});
+        console.log("WS recv:", { cmd, payload });
 
+        // -------------------------
+        // Macro: gestione comandi server
+        // -------------------------
         if (cmd.startsWith("TABLE_")) {
+            // macro: risposta su creazione/join tavolo
             if (cmd === "TABLE_CREATED" || cmd === "TABLE_JOINED") {
                 lobby.classList.add("hidden");
                 game.classList.remove("hidden");
                 document.getElementById("table-code").textContent = "Code: " + (payload || "");
             } else if (cmd === "TABLE_NOT_FOUND") alert("Table not found!");
             else if (cmd === "TABLE_FULL") alert("Table full!");
-        } 
+        }
         else if (cmd === "PLAY_AGAIN_LOCK") {
+            // macro: sei entrato mentre la partita è in corso -> waiting
             waiting.classList.remove("hidden");
             btns(false, false, false);
         }
         else if (cmd === "PLAY_AGAIN?") {
+            // macro: server chiede se vuoi rigiocare
             waiting.classList.add("hidden");
             again.disabled = false;
             hit.disabled = true;
@@ -127,74 +150,56 @@ function connect(msg) {
             play = false;
         }
         else if (cmd === "CARDS") {
-            // payload: comma-separated player cards (e.g. "J♠,7♦")
+            // macro: aggiornamento carte del player (payload comma-separated)
             const cards = payload ? payload.split(",").map(s => s.trim()).filter(Boolean) : [];
-            // add newly received cards (animation)
-            for (let c of cards.slice(pc.length)) {
-                add(pcards, c);
-                await wait(400);
-            }
+            // micro: animazione aggiunta solo delle nuove carte
+            for (let c of cards.slice(pc.length)) { add(pcards, c); await wait(400); }
             pc = cards;
             update(pval, pc);
         }
         else if (cmd === "DEALER_RESET") {
-            dcards.innerHTML = dval.textContent = "";
-            pcards.innerHTML = pval.textContent = "";
+            // macro: reset UI e stato (nuovo round)
+            dcards.innerHTML = "";
+            dval.textContent = "";
+            pcards.innerHTML = "";
+            pval.textContent = "";
             statusEl.textContent = "";
             dc = pc = [];
             btns(false, false, false);
             waiting.classList.add("hidden");
         }
         else if (cmd === "DEALER_INIT") {
-            // payload expected: two tokens separated by space: "C1 C2"
-            // C2 should be the actual card value (e.g. "9♦" or "J♣") but shown as hidden on client.
+            // macro: server invia le due carte iniziali del dealer (seconda coperta)
+            // micro: payload expected "C1 C2"
             const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
-            dcards.innerHTML = "";
-            dc = [];
-
-            if (parts[0]) {
-                // prima carta visibile
-                add(dcards, parts[0]);
-                dc.push(parts[0]);
-            }
-            if (parts[1]) {
-                // seconda carta coperta: store value in dataset so we can reveal later
-                add(dcards, parts[1], true);
-                dc.push(parts[1]);
-            }
-
-            // mostra valore solo della prima carta
+            dcards.innerHTML = ""; dc = [];
+            if (parts[0]) { add(dcards, parts[0]); dc.push(parts[0]); }
+            if (parts[1]) { add(dcards, parts[1], true); dc.push(parts[1]); } // seconda coperta
             const visibleValue = parts[0] ? val(parts[0]) : 0;
             dval.textContent = "Showing: " + visibleValue;
         }
         else if (cmd === "YOUR_TURN") {
+            // macro: è il tuo turno
             play = true;
             waiting.classList.add("hidden");
             btns(true, true, false);
         }
         else if (cmd === "DEALER_REVEAL") {
-            // payload optional: comma-separated dealer cards to set explicitly
-            // if payload is empty, just reveal the existing hidden card(s)
+            // macro: rivelazione carta coperta del dealer
+            // micro: payload opzionale con carte finali
             if (payload) {
-                // set explicit dealer cards (e.g. "J♠,9♦,5♣")
                 const final = payload.split(",").map(s => s.trim()).filter(Boolean);
-                // clear and render final dealer cards
-                dcards.innerHTML = "";
-                dc = [];
-                for (const card of final) {
-                    add(dcards, card);
-                    dc.push(card);
-                }
+                dcards.innerHTML = ""; dc = [];
+                for (const card of final) { add(dcards, card); dc.push(card); }
                 update(dval, dc);
             } else {
-                // reveal existing hidden card(s) stored in dataset or dc array
                 revealHiddenDealerCard();
                 update(dval, dc);
             }
             await wait(500);
         }
         else if (cmd === "DEALER_CARD") {
-            // payload: single card (e.g. "5♣")
+            // macro: il dealer pesca una carta aggiuntiva
             if (payload) {
                 const card = payload.trim();
                 dc.push(card);
@@ -204,34 +209,27 @@ function connect(msg) {
             }
         }
         else if (cmd === "RESULT") {
+            // macro: risultato finale per il player
             play = false;
             btns(false, false, false);
             const parts = payload ? payload.split(" ").map(s => s.trim()).filter(Boolean) : [];
             const result = parts[0] || "";
-            // find if the token "DEALER" appears; everything after are dealer cards joined by spaces or commas
             const dealerIndex = parts.indexOf("DEALER");
             let dealerCardsStr = "";
-            if (dealerIndex !== -1) {
-                // take remainder of the payload starting from token after DEALER
-                dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
-            }
+            if (dealerIndex !== -1) dealerCardsStr = parts.slice(dealerIndex + 1).join(" ");
 
             statusEl.textContent = result ? ("Result: " + result) : "";
 
             if (dealerCardsStr) {
-                // normalize: split by comma if present, otherwise by whitespace
-                let finalDealerCards = dealerCardsStr.includes(",")
+                // micro: normalizza lista carte dealer (virgole o spazi)
+                const finalDealerCards = dealerCardsStr.includes(",")
                     ? dealerCardsStr.split(",").map(s => s.trim()).filter(Boolean)
                     : dealerCardsStr.split(" ").map(s => s.trim()).filter(Boolean);
-                dcards.innerHTML = "";
-                dc = [];
-                for (const card of finalDealerCards) {
-                    dc.push(card);
-                    add(dcards, card);
-                }
+                dcards.innerHTML = ""; dc = [];
+                for (const card of finalDealerCards) { dc.push(card); add(dcards, card); }
                 update(dval, dc);
             } else {
-                // if server didn't send final cards, at least reveal hidden if present
+                // fallback: reveal eventuali carte nascoste
                 revealHiddenDealerCard();
                 update(dval, dc);
             }
@@ -245,7 +243,7 @@ function connect(msg) {
 
     ws.onclose = () => {
         console.log("WebSocket closed");
-        // Reset UI to lobby
+        // micro: reset UI al lobby
         game.classList.add("hidden");
         lobby.classList.remove("hidden");
         dcards.innerHTML = pcards.innerHTML = "";
@@ -256,16 +254,17 @@ function connect(msg) {
     };
 }
 
+// -------------------------
+// Invio comandi e controllo UI (macro)
+// -------------------------
 function send(m) {
-    if (!ws || ws.readyState !== 1) {
-        alert("Connessione non disponibile.");
-        return;
-    }
+    if (!ws || ws.readyState !== 1) { alert("Connessione non disponibile."); return; }
     if (m === "YES" && again.disabled) return;
     if (m === "HIT" && hit.disabled) return;
     if (m === "STAND" && stand.disabled) return;
     ws.send(m);
     if (m === "HIT" || m === "STAND") {
+        // micro: disabilita bottoni dopo HIT/STAND per evitare doppi click
         play = false;
         btns(false, false, false);
     } else if (m === "YES") {
@@ -284,41 +283,51 @@ function leave() {
     dc = pc = [];
 }
 
+// micro: utility per abilitare/disabilitare bottoni
 function btns(h, s, a) {
     hit.disabled = !h;
     stand.disabled = !s;
     again.disabled = !a;
 }
 
+// -------------------------
+// Gestione carte e visual (macro)
+// -------------------------
+
+/* add
+   - Aggiunge un elemento DOM 'card' in una lista (pcards o dcards)
+   - Se hid==true la carta è inizialmente "coperta" (class hidden)
+   - Memorizza il valore reale in dataset.card per poterlo rivelare correttamente
+*/
 function add(el, txt, hid) {
-    // create a card element; if hid==true, store the real card value in data-card and add class 'hidden'
     const d = document.createElement("div");
     d.className = "card" + (hid ? " hidden" : "");
-    // store card value explicitly so we can reveal it regardless of any client array state
-    d.dataset.card = txt;
-    // If hidden, the CSS will hide the text color. Still set the text for accessibility and for reveal.
-    d.textContent = txt;
+    d.dataset.card = txt;   // micro: memorizzo il valore reale
+    d.textContent = txt;    // impostato anche se hidden (verrà reso visibile alla reveal)
     el.appendChild(d);
 }
 
+/* revealHiddenDealerCard
+   - Cerca le carte con classe 'hidden' nell'area dealer e le rivela
+   - Assicura che il testo diventi leggibile rimuovendo la classe prima di impostare il testo
+*/
 function revealHiddenDealerCard() {
-    // Find any card elements with class 'hidden' in dealer area and reveal them using their dataset.card.
     for (let i = 0; i < dcards.children.length; i++) {
         const child = dcards.children[i];
         if (child.classList.contains("hidden")) {
-            // remove hidden class BEFORE setting text (so color becomes visible)
             child.classList.remove("hidden");
-            // Use stored dataset.card if available; fallback to existing text or dc array
             const real = child.dataset.card || (dc[i] || child.textContent);
             child.textContent = real;
-            // ensure dc array has the correct value in same position
-            if (!dc[i]) dc[i] = real;
+            if (!dc[i]) dc[i] = real; // sincronizza array dc
         }
     }
 }
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+// -------------------------
+// Logica valori carte (macro)
+// -------------------------
 
+// micro: val prende es. "J♠" e restituisce valore numerico usato per il showing
 function val(c) {
     if (!c) return 0;
     const v = c.slice(0, -1);
@@ -328,6 +337,7 @@ function val(c) {
     return Number.isNaN(n) ? 0 : n;
 }
 
+// sum / update: calcolo valore mano (A flessibile)
 function sum(cards) {
     let s = 0, a = 0;
     for (let c of cards) {
@@ -339,11 +349,15 @@ function sum(cards) {
     while (s > 21 && a > 0) { s -= 10; a--; }
     return s;
 }
-
 function update(el, cards) {
     const s = sum(cards);
-    el.textContent = "Value: " + s + (s>21 ? " - BUST!" : s===21 ? " - BLACKJACK!" : "");
+    el.textContent = "Value: " + s + (s > 21 ? " - BUST!" : s === 21 ? " - BLACKJACK!" : "");
 }
+
+// -------------------------
+// Funzioni ausiliarie
+// -------------------------
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 </script>
 </body>
 </html>
