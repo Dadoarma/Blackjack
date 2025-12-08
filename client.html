@@ -5,161 +5,428 @@
     <meta charset="UTF-8">
     <title>Blackjack</title>
     <style>
-        /* Corpo pagina con gradiente scuro e font leggibile */
-body {
+/* Reset e configurazioni base */
+* {
     margin: 0;
-    padding: 20px;
-    text-align: center;
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    color: #fff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-/* Titolo principale con effetto neon e ombra */
+/* Corpo con gradiente dinamico e animato */
+body {
+    min-height: 100vh;
+    padding: 20px;
+    text-align: center;
+    background: linear-gradient(-45deg, #0f172a, #1e293b, #334155, #475569);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    color: #f8fafc;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+}
+
+/* Animazione gradiente di sfondo */
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Effetto particelle decorative */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(120, 119, 198, 0.1) 0px, transparent 2px),
+        radial-gradient(circle at 80% 70%, rgba(255, 215, 0, 0.08) 0px, transparent 2px),
+        radial-gradient(circle at 40% 90%, rgba(56, 189, 248, 0.1) 0px, transparent 2px);
+    background-size: 300px 300px;
+    z-index: -1;
+    animation: floatParticles 20s linear infinite;
+}
+
+@keyframes floatParticles {
+    0% { transform: translateY(0px); }
+    100% { transform: translateY(-150px); }
+}
+
+/* Titolo con effetto neon avanzato */
 h1 {
-    margin-bottom: 30px;
-    font-size: 3em;
-    color: #ffd700;
-    text-shadow: 0 0 8px #ffd700, 0 0 20px #ffec8b, 0 0 30px #ffd700;
+    margin: 20px 0 40px;
+    font-size: 3.5rem;
+    font-weight: 900;
+    background: linear-gradient(90deg, #fbbf24, #f59e0b, #fde68a);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 
+        0 0 30px rgba(251, 191, 36, 0.3),
+        0 0 60px rgba(251, 191, 36, 0.2),
+        0 0 90px rgba(251, 191, 36, 0.1);
+    animation: shine 3s linear infinite;
+    letter-spacing: -0.5px;
+}
+
+@keyframes shine {
+    to { background-position: 200% center; }
 }
 
 /* Nascondi elementi */
-.hidden { display: none; }
+.hidden { 
+    display: none !important;
+    opacity: 0;
+    transform: scale(0.8);
+}
 
-/* Box principali con effetto glassmorphism e hover animato */
+/* Container principale con glassmorphism avanzato */
 .box {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(15px);
-    padding: 30px;
-    margin: 20px auto;
-    width: 420px;
-    border-radius: 25px;
-    border: 1px solid rgba(255,255,255,0.2);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.box:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 15px 40px rgba(0,0,0,0.7);
-}
-
-/* Pulsanti moderni con gradient, animazione luce e hover */
-button {
-    padding: 12px 28px;
-    border: none;
-    border-radius: 25px;
-    background: linear-gradient(145deg, #00b894, #55efc4);
-    color: #fff;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    margin: 8px;
-    box-shadow: 0 6px #009870;
-    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 28px;
+    padding: 40px;
+    margin: 30px auto;
+    width: 460px;
+    max-width: 90%;
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
 }
-button::after {
-    content: "";
+
+.box::before {
+    content: '';
     position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: rgba(255,255,255,0.2);
-    transform: rotate(45deg);
-    transition: all 0.5s ease;
-}
-button:hover::after {
     top: 0;
-    left: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.7s ease;
 }
+
+.box:hover::before {
+    left: 100%;
+}
+
+.box:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 
+        0 30px 60px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Pulsanti moderni con gradient animato */
+button {
+    padding: 16px 32px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #3b82f6, #2563eb, #1d4ed8);
+    background-size: 200% 100%;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.5px;
+    box-shadow: 
+        0 8px 20px rgba(37, 99, 235, 0.4),
+        0 4px 6px rgba(0, 0, 0, 0.1);
+    min-width: 140px;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.6s ease;
+}
+
+button:hover::before {
+    left: 100%;
+}
+
 button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px #009870;
+    transform: translateY(-4px) scale(1.05);
+    background-position: 100% 0;
+    box-shadow: 
+        0 12px 25px rgba(37, 99, 235, 0.5),
+        0 6px 10px rgba(0, 0, 0, 0.15);
 }
+
+button:active:not(:disabled) {
+    transform: translateY(-1px) scale(1.02);
+}
+
 button:disabled {
-    background: #555;
+    background: #475569;
     cursor: not-allowed;
+    opacity: 0.5;
+    transform: none !important;
     box-shadow: none;
 }
 
-/* Pulsante LEAVE rosso con animazione gradient */
+/* Pulsante LEAVE con effetto speciale */
 .leave {
-    background: linear-gradient(145deg, #e74c3c, #ff6f61);
-    box-shadow: 0 6px #c0392b;
+    background: linear-gradient(145deg, #ef4444, #dc2626, #b91c1c);
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+    margin-top: 20px;
 }
+
 .leave:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px #c0392b;
+    box-shadow: 0 12px 25px rgba(239, 68, 68, 0.5);
 }
 
-/* Container carte con min-height per layout stabile */
+/* Container delle carte */
 .cards {
-    min-height: 80px;
-    margin: 20px 0;
-}
-
-/* Carte con effetto 3D, hover animato e ombra luminosa */
-.card {
-    display: inline-block;
-    margin: 6px;
-    padding: 16px 22px;
-    background: #fff;
-    color: #000;
+    min-height: 120px;
+    margin: 30px 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.15);
     border-radius: 20px;
-    font-size: 22px;
-    font-weight: bold;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    position: relative;
-}
-.card:hover {
-    transform: translateY(-8px) rotateX(5deg) rotateY(5deg);
-    box-shadow: 0 15px 35px rgba(0,0,0,0.6), 0 0 15px rgba(255,255,255,0.3);
+    backdrop-filter: blur(10px);
 }
 
-/* Carte coperte con gradient e simbolo centrale */
-.hidden-card {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    color: #6c5ce7;
+/* Carte con design moderno e 3D */
+.card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 110px;
+    margin: 0;
+    padding: 15px;
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+    color: #1e293b;
+    border-radius: 14px;
+    font-size: 24px;
+    font-weight: 900;
+    box-shadow: 
+        0 10px 25px rgba(0, 0, 0, 0.3),
+        0 5px 10px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     position: relative;
-    font-weight: bold;
-    border: 2px solid rgba(255,255,255,0.2);
+    transform-style: preserve-3d;
+    animation: cardDeal 0.5s ease-out;
 }
-.hidden-card::after {
-    content: "♠";
-    color: rgba(255,255,255,0.8);
-    font-size: 1.8em;
+
+@keyframes cardDeal {
+    0% {
+        opacity: 0;
+        transform: translateY(30px) rotate(-10deg);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) rotate(0);
+    }
+}
+
+.card:hover {
+    transform: translateY(-12px) rotateX(5deg) rotateY(5deg);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Carte coperte con effetto misterioso */
+.hidden-card {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+    color: transparent;
+    position: relative;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.hidden-card::before {
+    content: "?";
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%) rotate(-20deg);
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 32px;
+    font-weight: bold;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-/* Input moderno con focus glow animato */
+/* Input moderno */
 input {
-    padding: 12px;
+    padding: 16px 20px;
     font-size: 16px;
-    border-radius: 12px;
-    border: none;
-    text-transform: uppercase;
-    margin: 10px 0;
-    width: 70%;
-    box-shadow: inset 0 4px 6px rgba(0,0,0,0.3);
-    transition: box-shadow 0.3s ease, transform 0.2s ease;
-}
-input:focus {
+    border-radius: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.07);
+    color: white;
+    margin: 15px 0;
+    width: 80%;
+    max-width: 300px;
+    transition: all 0.3s ease;
     outline: none;
-    box-shadow: 0 0 15px #ffd700, inset 0 4px 6px rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+    letter-spacing: 2px;
+    text-align: center;
+}
+
+input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+input:focus {
+    border-color: #3b82f6;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 0 0 3px rgba(59, 130, 246, 0.2),
+        0 10px 20px rgba(0, 0, 0, 0.2);
     transform: scale(1.03);
 }
 
+/* Header per dealer e player */
+h3 {
+    margin: 25px 0 15px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    display: inline-block;
+    padding-bottom: 8px;
+}
+
+h3::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    border-radius: 2px;
+}
+
+/* Display valori mano */
+#dealerHandValue, #playerHandValue {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 10px 0;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    display: inline-block;
+    min-width: 200px;
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+}
+
+/* Display codice tavolo */
+#tableCodeDisplay {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-bottom: 30px;
+    padding: 12px 24px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 16px;
+    display: inline-block;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 10px rgba(251, 191, 36, 0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+/* Separatore */
+hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    margin: 30px auto;
+    width: 80%;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .box {
+        width: 95%;
+        padding: 30px 20px;
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+    }
+    
+    .card {
+        width: 70px;
+        height: 100px;
+        font-size: 20px;
+    }
+    
+    button {
+        min-width: 120px;
+        padding: 14px 24px;
+    }
+}
+
+/* Animazione per risultato */
+@keyframes winPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* Stato BUST */
+.bust {
+    color: #ef4444 !important;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* Stato BLACKJACK */
+.blackjack {
+    color: #fbbf24 !important;
+    animation: sparkle 1s ease;
+}
+
+@keyframes sparkle {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+}
     </style>
 </head>
 
 <body>
-    <h1>🎰 Blackjack Live</h1>
+    <h1>Blackjack TRMs</h1>
 
     <!-- Lobby iniziale con creazione e join tavolo -->
     <div id="lobby" class="box">
