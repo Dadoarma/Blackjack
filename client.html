@@ -695,22 +695,22 @@
                     toggleButtons(false, false, false);
 
                 } else if (command === "DEALER_INIT") {
-                    const cards = data.split(" ");
-                    dealerCards = cards;
+                // Mostra la seconda carta del dealer, la prima nascosta
+                const cards = data.split(" ");
+                dealerCards = cards;
 
-                    dealerCardsContainer.innerHTML = "";
+                dealerCardsContainer.innerHTML = "";
 
-                    // Prima carta coperta
-                    addCardToContainer(dealerCardsContainer, cards[0], true);
+                // Prima carta COPERTA
+                addCardToContainer(dealerCardsContainer, "🂠", true);
 
-                    await sleep(300);
+                await sleep(300);
 
-                    // Seconda carta scoperta → hidden = false
-                    addCardToContainer(dealerCardsContainer, cards[1], false);
+                // Seconda carta SCOPERTA (hidden = false)
+                addCardToContainer(dealerCardsContainer, dealerCards[1], false);
 
-                    dealerHandValue.textContent = "Showing: " + getCardValue(cards[1]);
-                }
-                else if (command === "CARDS") {
+                dealerHandValue.textContent = "Showing: " + getCardValue(cards[1]);
+                }else if (command === "CARDS") {
                     // Mostra le carte del giocatore
                     playerCards = data.split(",");
                     renderCards(playerCardsContainer, playerCards);
@@ -783,19 +783,20 @@
 
         // Aggiunge una carta a un container
         function addCardToContainer(container, card, hidden) {
+            // Crea l'elemento carta
             const cardDiv = document.createElement("div");
             cardDiv.className = "card";
+            if (hidden) cardDiv.classList.add("hidden-card"); // Carta coperta
+            cardDiv.textContent = card;
+            container.appendChild(cardDiv); // Aggiunge al container
+        }
 
-            if (hidden) {
-                // Carta coperta → mostra sempre solo il retro
-                cardDiv.classList.add("hidden-card");
-                cardDiv.textContent = "🂠";
-            } else {
-                // Carta normale
-                cardDiv.textContent = card;
+        // Mostra tutte le carte di un array
+        function renderCards(container, cards) {
+            container.innerHTML = ""; // Pulisce il container
+            for (let i = 0; i < cards.length; i++) {
+                addCardToContainer(container, cards[i]);
             }
-
-            container.appendChild(cardDiv);
         }
 
         // Funzione di pausa
