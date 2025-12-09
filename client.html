@@ -695,22 +695,18 @@
                     toggleButtons(false, false, false);
 
                 } else if (command === "DEALER_INIT") {
-                // Mostra la seconda carta del dealer, la prima nascosta
-                const cards = data.split(" ");
-                dealerCards = cards;
+                    // Mostra la seconda carta del dealer, la prima nascosta
+                    const cards = data.split(",");
+                    dealerCards = cards;
+                    console.log("Dealer init cards:", dealerCards);
+                    dealerCardsContainer.innerHTML = "";
+                    addCardToContainer(dealerCardsContainer, "🂠", true);
+                    await sleep(300);
+                    console.log(dealerCards);
+                    addCardToContainer(dealerCardsContainer, dealerCards[1]);
+                    dealerHandValue.textContent = "Showing: " + getCardValue(dealerCards[1]);
 
-                dealerCardsContainer.innerHTML = "";
-
-                // Prima carta COPERTA
-                addCardToContainer(dealerCardsContainer, "🂠", true);
-
-                await sleep(300);
-
-                // Seconda carta SCOPERTA (hidden = false)
-                addCardToContainer(dealerCardsContainer, dealerCards[1], false);
-
-                dealerHandValue.textContent = "Showing: " + getCardValue(cards[1]);
-                }else if (command === "CARDS") {
+                } else if (command === "CARDS") {
                     // Mostra le carte del giocatore
                     playerCards = data.split(",");
                     renderCards(playerCardsContainer, playerCards);
@@ -737,7 +733,7 @@
                     toggleButtons(false, false, false);
                     const parts = event.data.split(" ");
                     const result = parts[1];
-                    dealerCards = parts[3]?.split(",") || []; // Aggiorna carte dealer se fornite
+                    dealerCards = parts[3]?.split(",") || [];
                     renderCards(dealerCardsContainer, dealerCards);
                     updateHandValue(dealerHandValue, dealerCards);
 
@@ -830,8 +826,12 @@
         function updateHandValue(element, cards) {
             const total = calculateHandValue(cards); // Calcola il totale
             let text = "Value: " + total;
-            if (total > 21) text += " BUST";
-            else if (total === 21) text += " BLACKJACK";
+            if (total > 21) {
+                text += " BUST";
+                toggleButtons(false, false, false); // Blocca tutti i pulsanti in caso di BUST
+            } else if (total === 21) {
+                text += " BLACKJACK";
+            }
             element.textContent = text;
         }
     </script>

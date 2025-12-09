@@ -175,7 +175,7 @@ async function runGameLoop(tableCode) {
 
     // Prendo le prime due carte per il dealer dal mazzo
     table.dealer = [table.deck.shift(), table.deck.shift()];
-    broadcastMessage(table, `DEALER_INIT ${formatCard(table.dealer[0])} ${formatCard(table.dealer[1])}`);
+    broadcastMessage(table, `DEALER_INIT ${formatCard(table.dealer[0])},${formatCard(table.dealer[1])}`);
     await wait(600);
 
     // Distribuisco le carte ai giocatori
